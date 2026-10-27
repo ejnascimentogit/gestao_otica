@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import { Badge, Botao, Card, PageHeader } from '../components/ui'
+import { Badge, Botao, Card, PageHeader, Selecao } from '../components/ui'
 import { formatarData, formatarMoeda, hojeISO } from '../domain/formatos'
-import { baixarParcela, FORMAS, useStore } from '../data/store'
+import { baixarParcela, FORMAS, tentar, useStore, type FormaPagamento } from '../data/store'
 
 export function FinanceiroPage() {
   const { parcelas, clientes, ordens } = useStore()
   const [aba, setAba] = useState<'receber' | 'caixa'>('receber')
+  const [formaBaixa, setFormaBaixa] = useState<Record<string, FormaPagamento>>({})
   const hoje = hojeISO()
 
   const abertas = parcelas.filter(p => !p.pago).sort((a, b) => a.vencimento.localeCompare(b.vencimento))
@@ -43,7 +44,16 @@ export function FinanceiroPage() {
                         <td>{p.numero}ª</td>
                         <td>{p.vencimento < hoje ? <Badge tom="erro">Vencida</Badge> : <Badge tom="info">A vencer</Badge>}</td>
                         <td className="num"><b>{formatarMoeda(p.valorCentavos)}</b></td>
-                        <td className="num"><Botao pequeno onClick={() => baixarParcela(p.id)}>Dar baixa</Botao></td>
+                        <td className="num">
+                          <div className="linha" style={{ justifyContent: 'flex-end', flexWrap: 'nowrap' }}>
+                            <Selecao aria-label="Forma de pagamento" style={{ width: 150, minHeight: 28, padding: '2px 8px' }}
+                              value={formaBaixa[p.id] ?? 'pix'}
+                              onChange={e => setFormaBaixa(f => ({ ...f, [p.id]: e.target.value as FormaPagamento }))}>
+                              {(Object.keys(FORMAS) as FormaPagamento[]).filter(f => f !== 'crediario_loja').map(f => <option key={f} value={f}>{FORMAS[f]}</option>)}
+                            </Selecao>
+                            <Botao pequeno onClick={() => tentar(() => baixarParcela(p.id, formaBaixa[p.id] ?? 'pix'))}>Dar baixa</Botao>
+                          </div>
+                        </td>
                       </tr>
                     ))}
                   </tbody>

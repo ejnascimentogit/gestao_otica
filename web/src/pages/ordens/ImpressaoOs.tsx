@@ -1,7 +1,7 @@
 import { formatarData, formatarMoeda } from '../../domain/formatos'
 import { formatarDioptria } from '../../domain/receita'
 import { totalItem, totalOs } from '../../domain/totais'
-import { LOJA, useStore, type OrdemServico } from '../../data/store'
+import { useStore, type OrdemServico } from '../../data/store'
 
 const VIAS = [
   { nome: 'Via do cliente', valores: true },
@@ -17,7 +17,7 @@ const st: Record<string, React.CSSProperties> = {
 }
 
 export function ImpressaoOs({ os }: { os: OrdemServico }) {
-  const { clientes, laboratorios, vendedores } = useStore()
+  const { clientes, laboratorios, vendedores, loja: LOJA } = useStore()
   const c = clientes.find(x => x.id === os.clienteId)
   const lab = laboratorios.find(l => l.id === os.laboratorioId)
   const vend = vendedores.find(v => v.id === os.vendedorId)

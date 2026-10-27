@@ -1,9 +1,9 @@
 import { formatarData, formatarMoeda, hojeISO } from '../../domain/formatos'
 import { valorPorExtenso } from '../../domain/crediario'
-import { LOJA, useStore, type OrdemServico } from '../../data/store'
+import { useStore, type OrdemServico } from '../../data/store'
 
 export function ImpressaoPromissoria({ os }: { os: OrdemServico }) {
-  const { clientes, parcelas } = useStore()
+  const { clientes, parcelas, loja: LOJA } = useStore()
   const c = clientes.find(x => x.id === os.clienteId)
   const lista = parcelas.filter(p => p.osNumero === os.numero)
 

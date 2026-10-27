@@ -5,7 +5,7 @@ import { receitaVazia } from '../../domain/receita'
 import { quantidadeSugerida, subtotal, totalItem, totalOs, type ItemOs } from '../../domain/totais'
 import { simularCrediario, type MetodoJuros } from '../../domain/crediario'
 import {
-  FORMAS, STATUS_OS, gerarParcelas, novoId, salvarCliente, salvarOs, useStore,
+  FORMAS, STATUS_OS, gerarParcelas, novoId, salvarCliente, salvarOs, tentar, useStore,
   type FormaPagamento, type OrdemServico, type StatusOs,
 } from '../../data/store'
 import { ReceitaForm } from './ReceitaForm'
@@ -28,6 +28,7 @@ export function OrdemForm({ inicial, aoVoltar }: { inicial: OrdemServico; aoVolt
   const [modal, setModal] = useState<null | 'cliente' | 'entrada' | 'finalizar'>(null)
   const [imprimir, setImprimir] = useState<null | 'os' | 'promissoria'>(null)
   const [msg, setMsg] = useState('')
+  const [salvando, setSalvando] = useState(false)
 
   const cliente = clientes.find(c => c.id === os.clienteId)
   const total = totalOs(os.itens, os.descontoGeral)
@@ -64,10 +65,13 @@ export function OrdemForm({ inicial, aoVoltar }: { inicial: OrdemServico; aoVolt
     return null
   }
 
-  function salvar(o = os) {
+  async function salvar(o = os): Promise<OrdemServico | null> {
     const erro = validarParaStatus(o.status)
     if (erro) { setMsg(erro); return null }
-    const salva = salvarOs(o)
+    setSalvando(true)
+    const salva = await tentar(() => salvarOs(o))
+    setSalvando(false)
+    if (!salva) { setMsg('Não foi possível salvar. Veja o erro no topo da tela.'); return null }
     setOs(salva)
     setMsg(`OS nº ${salva.numero} salva.`)
     return salva
@@ -241,26 +245,30 @@ export function OrdemForm({ inicial, aoVoltar }: { inicial: OrdemServico; aoVolt
         <div><div className="fraco">Total da OS</div><div className="total">{formatarMoeda(total)}</div></div>
         <span className="espaco" />
         <Botao onClick={aoVoltar}>Cancelar</Botao>
-        <Botao variante="primario" onClick={() => salvar()}>Salvar OS</Botao>
+        <Botao variante="primario" disabled={salvando} onClick={() => salvar()}>{salvando ? 'Salvando…' : 'Salvar OS'}</Botao>
       </div>
 
       {modal === 'cliente' && <ModalCliente aoFechar={() => setModal(null)} aoSalvar={id => { upd({ clienteId: id }); setModal(null) }} />}
       {modal === 'entrada' && (
-        <ModalEntrada saldo={saldo} aoFechar={() => setModal(null)} aoConfirmar={(forma, valor) => {
-          const n = { ...os, pagamentos: [...os.pagamentos, { id: novoId(), forma, valor, em: hojeISO() }] }
-          setOs(n); salvar(n); setModal(null)
+        <ModalEntrada saldo={saldo} aoFechar={() => setModal(null)} aoConfirmar={async (forma, valor) => {
+          const n = { ...os, pagamentos: [...os.pagamentos, { id: novoId(), forma, valor, em: hojeISO(), novo: true }] }
+          setModal(null)
+          await salvar(n)
         }} />
       )}
       {modal === 'finalizar' && (
-        <ModalFinalizar os={os} saldo={saldo} aoFechar={() => setModal(null)} aoConfirmar={(forma, cred) => {
+        <ModalFinalizar os={os} saldo={saldo} aoFechar={() => setModal(null)} aoConfirmar={async (forma, cred) => {
           const n: OrdemServico = {
             ...os, status: 'finalizada',
-            pagamentos: forma !== 'crediario_loja' && saldo > 0 ? [...os.pagamentos, { id: novoId(), forma, valor: saldo, em: hojeISO() }] : os.pagamentos,
-            crediario: cred ? { jurosMesPct: cred.juros, totalCentavos: cred.sim.totalCentavos } : os.crediario,
+            pagamentos: forma !== 'crediario_loja' && saldo > 0 ? [...os.pagamentos, { id: novoId(), forma, valor: saldo, em: hojeISO(), novo: true }] : os.pagamentos,
           }
-          const salva = salvar(n)
-          if (salva && cred) gerarParcelas(salva, cred.sim.parcelas)
           setModal(null)
+          const salva = await salvar(n)
+          if (salva && cred) {
+            const ok = await tentar(() => gerarParcelas(salva, { valorCentavos: saldo, jurosMesPct: cred.juros, metodo: cred.metodo, lista: cred.sim.parcelas }))
+            if (ok !== null) setOs(o => ({ ...o, crediario: { jurosMesPct: cred.juros, totalCentavos: cred.sim.totalCentavos } }))
+            else setMsg('A OS foi salva, mas o crediário não foi gerado. Veja o erro no topo da tela.')
+          }
         }} />
       )}
     </div>
@@ -283,7 +291,10 @@ function ModalCliente({ aoFechar, aoSalvar }: { aoFechar: () => void; aoSalvar: 
   return (
     <Modal titulo="Novo cliente" aoFechar={aoFechar} rodape={<>
       <Botao onClick={aoFechar}>Cancelar</Botao>
-      <Botao variante="primario" disabled={!c.nome.trim()} onClick={() => aoSalvar(salvarCliente(c).id)}>Salvar e usar na OS</Botao>
+      <Botao variante="primario" disabled={!c.nome.trim()} onClick={async () => {
+        const novo = await tentar(() => salvarCliente(c))
+        if (novo) aoSalvar(novo.id)
+      }}>Salvar e usar na OS</Botao>
     </>}>
       <div className="grade">
         <Campo rotulo="Nome *" style={{ gridColumn: '1 / -1' }}><Entrada autoFocus value={c.nome} onChange={e => setC({ ...c, nome: e.target.value })} /></Campo>
@@ -320,7 +331,7 @@ function ModalEntrada({ saldo, aoFechar, aoConfirmar }: { saldo: number; aoFecha
 
 function ModalFinalizar({ os, saldo, aoFechar, aoConfirmar }: {
   os: OrdemServico; saldo: number; aoFechar: () => void
-  aoConfirmar: (f: FormaPagamento, cred: { juros: number; sim: ReturnType<typeof simularCrediario> } | null) => void
+  aoConfirmar: (f: FormaPagamento, cred: { juros: number; metodo: MetodoJuros; sim: ReturnType<typeof simularCrediario> } | null) => void
 }) {
   const [forma, setForma] = useState<FormaPagamento>(saldo > 0 ? 'crediario_loja' : 'dinheiro')
   const [n, setN] = useState(3)
@@ -335,7 +346,7 @@ function ModalFinalizar({ os, saldo, aoFechar, aoConfirmar }: {
   return (
     <Modal titulo={`Finalizar OS nº ${os.numero || '(nova)'}`} aoFechar={aoFechar} rodape={<>
       <Botao onClick={aoFechar}>Cancelar</Botao>
-      <Botao variante="primario" disabled={!os.clienteId} onClick={() => aoConfirmar(forma, ehCred ? { juros, sim } : null)}>
+      <Botao variante="primario" disabled={!os.clienteId} onClick={() => aoConfirmar(forma, ehCred ? { juros, metodo, sim } : null)}>
         {ehCred ? `Gerar ${n} parcelas e finalizar` : 'Finalizar OS'}
       </Botao>
     </>}>

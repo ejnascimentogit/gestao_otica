@@ -1,11 +1,14 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { Icone } from './components/ui'
+import { Botao, Icone } from './components/ui'
 import { DashboardPage } from './pages/DashboardPage'
 import { OrdensPage } from './pages/ordens/OrdensPage'
 import { ClientesPage } from './pages/ClientesPage'
 import { FinanceiroPage } from './pages/FinanceiroPage'
 import { AgendaPage } from './pages/AgendaPage'
 import { SimuladorPage } from './pages/SimuladorPage'
+import { LoginPage } from './pages/LoginPage'
+import { MODO_DEMO, sb } from './lib/supabase'
+import { encerrar, iniciar, limparErro, useStore } from './data/store'
 
 // Registro de módulos: para adicionar uma tela, inclua aqui (ver .claude/skills/nova-tela)
 const MODULOS: Array<{ rota: string; rotulo: string; icone: ReactNode; grupo?: string }> = [
@@ -19,7 +22,72 @@ const MODULOS: Array<{ rota: string; rotulo: string; icone: ReactNode; grupo?: s
 
 const rotaAtual = () => window.location.hash.replace(/^#\/?/, '') || 'painel'
 
+type Fase = 'verificando' | 'login' | 'sem_loja' | 'carregando' | 'pronto' | 'falha'
+
 export default function App() {
+  const [fase, setFase] = useState<Fase>('verificando')
+
+  useEffect(() => {
+    if (MODO_DEMO) { iniciar().then(() => setFase('pronto')); return }
+
+    let ativo = true
+    async function abrir(temSessao: boolean) {
+      if (!ativo) return
+      if (!temSessao) { encerrar(); setFase('login'); return }
+      setFase('carregando')
+      try {
+        const r = await iniciar()
+        if (ativo) setFase(r === 'ok' ? 'pronto' : 'sem_loja')
+      } catch {
+        if (ativo) setFase('falha')
+      }
+    }
+    sb.auth.getSession().then(({ data }) => abrir(!!data.session))
+    const { data: sub } = sb.auth.onAuthStateChange((evento, sessao) => {
+      if (evento === 'SIGNED_IN' || evento === 'SIGNED_OUT') abrir(!!sessao)
+    })
+    return () => { ativo = false; sub.subscription.unsubscribe() }
+  }, [])
+
+  const sair = () => sb.auth.signOut()
+
+  if (fase === 'verificando' || fase === 'carregando') {
+    return <div className="vazio" style={{ paddingTop: 120 }}>{fase === 'carregando' ? 'Carregando os dados da loja…' : 'Abrindo…'}</div>
+  }
+  if (fase === 'login') return <LoginPage />
+  if (fase === 'sem_loja') {
+    return (
+      <div style={{ maxWidth: 420, margin: '120px auto', padding: 16 }} className="card">
+        <div className="card-corpo" style={{ display: 'grid', gap: 12 }}>
+          <b>Usuário sem loja</b>
+          <p className="muted" style={{ margin: 0 }}>Este login ainda não está ligado a nenhuma loja. Peça ao administrador para cadastrar você.</p>
+          <Botao onClick={sair}>Sair</Botao>
+        </div>
+      </div>
+    )
+  }
+  if (fase === 'falha') return <Falha aoSair={sair} />
+  return <Sistema aoSair={MODO_DEMO ? undefined : sair} />
+}
+
+function Falha({ aoSair }: { aoSair: () => void }) {
+  const { erro } = useStore()
+  return (
+    <div style={{ maxWidth: 480, margin: '120px auto', padding: 16 }} className="card">
+      <div className="card-corpo" style={{ display: 'grid', gap: 12 }}>
+        <b>Não foi possível carregar os dados</b>
+        <p className="muted" style={{ margin: 0 }}>{erro || 'Verifique a conexão e tente de novo.'}</p>
+        <div className="linha">
+          <Botao variante="primario" onClick={() => window.location.reload()}>Tentar de novo</Botao>
+          <Botao onClick={aoSair}>Sair</Botao>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function Sistema({ aoSair }: { aoSair?: () => void }) {
+  const { loja, usuario, erro } = useStore()
   const [rota, setRota] = useState(rotaAtual)
   const [menuAberto, setMenuAberto] = useState(false)
 
@@ -44,7 +112,7 @@ export default function App() {
     <div className="app">
       <header className="topo-mobile">
         <button className="botao fantasma pequeno" aria-label="Menu" onClick={() => setMenuAberto(true)}>{Icone.menu}</button>
-        Gestão Ótica
+        {loja.nome || 'Gestão Ótica'}
       </header>
       <nav className={`lateral ${menuAberto ? 'aberta' : ''}`} onClick={e => e.target === e.currentTarget && setMenuAberto(false)}>
         <div className="logo">
@@ -61,9 +129,24 @@ export default function App() {
             </a>
           </div>
         ))}
-        <div className="lateral-rodape">Protótipo · dados de exemplo</div>
+        <div className="lateral-rodape">
+          {aoSair ? (
+            <div style={{ display: 'grid', gap: 6 }}>
+              <div><b style={{ color: 'var(--tinta)' }}>{loja.nome}</b><div>{usuario}</div></div>
+              <Botao pequeno onClick={aoSair}>Sair</Botao>
+            </div>
+          ) : 'Protótipo · dados de exemplo'}
+        </div>
       </nav>
-      <main className="conteudo">{pagina}</main>
+      <main className="conteudo">
+        {erro && (
+          <div className="aviso alerta nao-imprimir" role="alert" style={{ marginBottom: 16 }}>
+            <span style={{ flex: 1 }}>{erro}</span>
+            <Botao pequeno variante="fantasma" onClick={limparErro}>Fechar</Botao>
+          </div>
+        )}
+        {pagina}
+      </main>
     </div>
   )
 }

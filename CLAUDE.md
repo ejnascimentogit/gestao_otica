@@ -15,7 +15,9 @@ Sistema de gestão para óticas (OS, receita, crediário, financeiro, simulador 
 - **Produto pessoal** do Edimilson. Nada em contas da Intelipulse ou da EFR.
 - **Banco:** Supabase, projeto `gestao-otica` (ref `mhouxtzeomirluezzaql`), organização `ejnotica@gmail.com's Org`, plano Free (Nano), região `sa-east-1` (São Paulo). URL: `https://mhouxtzeomirluezzaql.supabase.co`.
 - Criado com Data API ligada, **"expor tabelas automaticamente" desligado** (toda tabela nova precisa de `GRANT` explícito) e **RLS automática** ligada.
-- **Front:** Cloudflare Workers (a configurar), deploy pelo Workers Builds.
+- **Front:** Cloudflare Workers, projeto `gestao-otica` (conta `ejnascimento1@gmail.com`), deploy pelo Workers Builds: raiz `web`, build `npm run build`, deploy `npx wrangler deploy` (config em `web/wrangler.jsonc`).
+- **Login:** Supabase Auth (e-mail e senha). URL e chave publishable ficam em `web/src/lib/supabase.ts` (públicas por desenho; a secret nunca vai no front).
+- **Modo demonstração:** `npm run build:single` gera o protótipo com dados de exemplo, sem login (`MODO_DEMO`).
 - Antes do primeiro cliente pagante: plano Pro (o Free pausa por inatividade e não tem backup).
 
 ## Estrutura
@@ -26,7 +28,7 @@ web/                     front React + Vite + TypeScript
   src/domain/            regras puras (receita, crediário, totais) + testes
   src/pages/             uma pasta/arquivo por módulo
   src/components/        componentes reutilizáveis
-  src/data/              mock (protótipo) → depois repositórios Supabase
+  src/data/              store.ts (estado + ações), repo.ts (Supabase), mock.ts (demonstração)
 .claude/skills/          skills do projeto
 ```
 

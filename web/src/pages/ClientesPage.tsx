@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Botao, Card, Campo, Entrada, Icone, Modal, PageHeader } from '../components/ui'
 import { formatarData, formatarMoeda } from '../domain/formatos'
 import { totalOs } from '../domain/totais'
-import { salvarCliente, useStore } from '../data/store'
+import { salvarCliente, tentar, useStore } from '../data/store'
 
 export function ClientesPage() {
   const { clientes, ordens } = useStore()
@@ -43,7 +43,7 @@ export function ClientesPage() {
       {novo && (
         <Modal titulo="Novo cliente" aoFechar={() => setNovo(false)} rodape={<>
           <Botao onClick={() => setNovo(false)}>Cancelar</Botao>
-          <Botao variante="primario" disabled={!form.nome.trim()} onClick={() => { salvarCliente(form); setNovo(false); setForm({ nome: '', cpf: '', celular: '', endereco: '' }) }}>Salvar</Botao>
+          <Botao variante="primario" disabled={!form.nome.trim()} onClick={async () => { const ok = await tentar(() => salvarCliente(form)); if (ok) { setNovo(false); setForm({ nome: '', cpf: '', celular: '', endereco: '' }) } }}>Salvar</Botao>
         </>}>
           <div className="grade">
             <Campo rotulo="Nome *" style={{ gridColumn: '1 / -1' }}><Entrada autoFocus value={form.nome} onChange={e => setForm({ ...form, nome: e.target.value })} /></Campo>

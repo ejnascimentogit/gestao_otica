@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Badge, Botao, Card, Campo, Entrada, Icone, Modal, PageHeader, Selecao } from '../components/ui'
 import { formatarData, hojeISO } from '../domain/formatos'
-import { mudarStatusAgendamento, salvarAgendamento, useStore } from '../data/store'
+import { mudarStatusAgendamento, salvarAgendamento, tentar, useStore } from '../data/store'
 
 const DOW = ['seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'dom']
 const TOM = { agendado: 'info', realizado: 'ok', cancelado: 'erro' } as const
@@ -46,8 +46,8 @@ export function AgendaPage() {
               <div style={{ flex: 1 }}>{x.clienteNome}<div className="fraco">{x.tipo}</div></div>
               <Badge tom={TOM[x.status]}>{x.status}</Badge>
               {x.status === 'agendado' && <>
-                <Botao pequeno onClick={() => mudarStatusAgendamento(x.id, 'realizado')}>Realizado</Botao>
-                <Botao pequeno variante="fantasma" onClick={() => mudarStatusAgendamento(x.id, 'cancelado')}>Cancelar</Botao>
+                <Botao pequeno onClick={() => tentar(() => mudarStatusAgendamento(x.id, 'realizado'))}>Realizado</Botao>
+                <Botao pequeno variante="fantasma" onClick={() => tentar(() => mudarStatusAgendamento(x.id, 'cancelado'))}>Cancelar</Botao>
               </>}
             </div>
           ))}
@@ -57,7 +57,7 @@ export function AgendaPage() {
       {novo && (
         <Modal titulo={`Novo agendamento · ${formatarData(sel)}`} aoFechar={() => setNovo(false)} rodape={<>
           <Botao onClick={() => setNovo(false)}>Cancelar</Botao>
-          <Botao variante="primario" disabled={!form.clienteNome} onClick={() => { salvarAgendamento({ clienteNome: form.clienteNome, tipo: form.tipo, inicio: `${sel}T${form.hora}`, status: 'agendado' }); setNovo(false) }}>Agendar</Botao>
+          <Botao variante="primario" disabled={!form.clienteNome} onClick={async () => { const ok = await tentar(() => salvarAgendamento({ clienteNome: form.clienteNome, tipo: form.tipo, inicio: `${sel}T${form.hora}`, status: 'agendado' })); if (ok !== null) setNovo(false) }}>Agendar</Botao>
         </>}>
           <div className="grade">
             <Campo rotulo="Cliente" style={{ gridColumn: '1 / -1' }}><Entrada autoFocus value={form.clienteNome} onChange={e => setForm({ ...form, clienteNome: e.target.value })} /></Campo>

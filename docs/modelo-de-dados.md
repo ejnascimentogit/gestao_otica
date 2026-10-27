@@ -4,10 +4,11 @@ Projeto Supabase `gestao-otica` (ref `mhouxtzeomirluezzaql`, São Paulo).
 
 | Migração | Conteúdo | Situação |
 |---|---|---|
-| `20261027000001_schema_inicial.sql` | Tabelas, gatilhos e RLS | A aplicar |
-| `20261027000002_permissoes_e_storage.sql` | `GRANT` da Data API e bucket `receitas` | A aplicar |
+| `20261027000001_schema_inicial.sql` | Tabelas, gatilhos e RLS | Aplicada em 27/10/2026 |
+| `20261027000002_permissoes_e_storage.sql` | `GRANT` da Data API e bucket `receitas` | Aplicada em 27/10/2026 |
+| `20261027000003_gatilho_historico_e_crediario.sql` | Gatilho de histórico como dono; função `gerar_crediario` | A aplicar |
 
-Depois das migrações: `supabase/setup/primeira-loja.sql` cria a primeira loja e liga o usuário a ela.
+Depois das migrações: `supabase/setup/primeira-loja.sql` cria a primeira loja e liga o usuário a ela (feito em 27/10/2026: loja `Ótica Teste`, admin `ejnotica@gmail.com`). `supabase/setup/produtos-e-laboratorios-exemplo.sql` cadastra laboratórios e produtos para teste.
 
 ```mermaid
 erDiagram

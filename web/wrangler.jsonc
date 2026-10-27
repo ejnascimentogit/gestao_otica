@@ -1,0 +1,10 @@
+{
+  // Cloudflare Workers: publica o build estático do Vite (pasta dist/).
+  // Deploy automático pelo Workers Builds a cada push na main (raiz do projeto: web/).
+  "name": "gestao-otica",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application"
+  }
+}
