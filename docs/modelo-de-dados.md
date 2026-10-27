@@ -1,6 +1,13 @@
 # Modelo de Dados
 
-Schema em `supabase/migrations/20261027000001_schema_inicial.sql`.
+Projeto Supabase `gestao-otica` (ref `mhouxtzeomirluezzaql`, São Paulo).
+
+| Migração | Conteúdo | Situação |
+|---|---|---|
+| `20261027000001_schema_inicial.sql` | Tabelas, gatilhos e RLS | A aplicar |
+| `20261027000002_permissoes_e_storage.sql` | `GRANT` da Data API e bucket `receitas` | A aplicar |
+
+Depois das migrações: `supabase/setup/primeira-loja.sql` cria a primeira loja e liga o usuário a ela.
 
 ```mermaid
 erDiagram

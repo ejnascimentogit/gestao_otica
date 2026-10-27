@@ -11,6 +11,13 @@ Sistema de gestão para óticas (OS, receita, crediário, financeiro, simulador 
    - entrada, crediário, parcelas, caixa → `.claude/skills/financeiro-crediario`
 3. **Antes de alterar um fluxo que já existe** (OS, financeiro, status, cálculos), descreva a mudança e espere aprovação do Edimilson.
 
+## Infraestrutura
+- **Produto pessoal** do Edimilson. Nada em contas da Intelipulse ou da EFR.
+- **Banco:** Supabase, projeto `gestao-otica` (ref `mhouxtzeomirluezzaql`), organização `ejnotica@gmail.com's Org`, plano Free (Nano), região `sa-east-1` (São Paulo). URL: `https://mhouxtzeomirluezzaql.supabase.co`.
+- Criado com Data API ligada, **"expor tabelas automaticamente" desligado** (toda tabela nova precisa de `GRANT` explícito) e **RLS automática** ligada.
+- **Front:** Cloudflare Workers (a configurar), deploy pelo Workers Builds.
+- Antes do primeiro cliente pagante: plano Pro (o Free pausa por inatividade e não tem backup).
+
 ## Estrutura
 ```
 docs/                    documentação funcional e técnica
