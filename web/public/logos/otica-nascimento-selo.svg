@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200" role="img" aria-label="Ótica Nascimento">
+  <defs>
+    <!-- topo: da esquerda para a direita passando por cima -->
+    <path id="arco-topo" d="M 26 100 A 74 74 0 0 1 174 100" />
+    <!-- base: da esquerda para a direita passando por baixo, para o texto ficar de pé -->
+    <path id="arco-base" d="M 16 100 A 84 84 0 0 0 184 100" />
+  </defs>
+  <circle cx="100" cy="100" r="96" fill="none" stroke="#2E4A3A" stroke-width="4" />
+  <circle cx="100" cy="100" r="58" fill="#2E4A3A" />
+  <text font-family="Sora, Manrope, 'Segoe UI', Arial, sans-serif" font-size="15" font-weight="700" letter-spacing="2.5" fill="#2E4A3A" text-anchor="middle">
+    <textPath href="#arco-topo" startOffset="50%">ÓTICA NASCIMENTO</textPath>
+  </text>
+  <text font-family="Sora, Manrope, 'Segoe UI', Arial, sans-serif" font-size="12" font-weight="700" letter-spacing="4" fill="#2E4A3A" text-anchor="middle">
+    <textPath href="#arco-base" startOffset="50%">ÓCULOS E LENTES</textPath>
+  </text>
+  <circle cx="21" cy="100" r="3.5" fill="#E0962A" />
+  <circle cx="179" cy="100" r="3.5" fill="#E0962A" />
+  <circle cx="80" cy="102" r="14" fill="none" stroke="#FFFFFF" stroke-width="4" />
+  <circle cx="120" cy="102" r="14" fill="none" stroke="#FFFFFF" stroke-width="4" />
+  <path d="M94 99 Q100 93 106 99" fill="none" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round" />
+  <circle cx="126" cy="96" r="4" fill="#E0962A" />
+</svg>

@@ -9,11 +9,13 @@ import { SimuladorPage } from './pages/SimuladorPage'
 import { LoginPage } from './pages/LoginPage'
 import { ProdutosPage } from './pages/ProdutosPage'
 import { LaboratoriosPage } from './pages/LaboratoriosPage'
+import { UsuariosPage } from './pages/UsuariosPage'
+import { TrocarSenha } from './components/TrocarSenha'
 import { MODO_DEMO, sb } from './lib/supabase'
-import { encerrar, iniciar, limparErro, useStore } from './data/store'
+import { encerrar, iniciar, limparErro, podeGerenciarUsuarios, useStore } from './data/store'
 
 // Registro de módulos: para adicionar uma tela, inclua aqui (ver .claude/skills/nova-tela)
-const MODULOS: Array<{ rota: string; rotulo: string; icone: ReactNode; grupo?: string }> = [
+const MODULOS: Array<{ rota: string; rotulo: string; icone: ReactNode; grupo?: string; soGestor?: boolean }> = [
   { rota: 'painel', rotulo: 'Painel', icone: Icone.painel },
   { rota: 'ordens', rotulo: 'Ordens de serviço', icone: Icone.os, grupo: 'Atendimento' },
   { rota: 'agenda', rotulo: 'Agenda', icone: Icone.agenda },
@@ -22,6 +24,7 @@ const MODULOS: Array<{ rota: string; rotulo: string; icone: ReactNode; grupo?: s
   { rota: 'produtos', rotulo: 'Produtos e serviços', icone: Icone.produtos },
   { rota: 'laboratorios', rotulo: 'Laboratórios', icone: Icone.laboratorio },
   { rota: 'financeiro', rotulo: 'Financeiro', icone: Icone.financeiro, grupo: 'Gestão' },
+  { rota: 'usuarios', rotulo: 'Usuários', icone: Icone.chave, soGestor: true },
 ]
 
 const rotaAtual = () => window.location.hash.replace(/^#\/?/, '') || 'painel'
@@ -91,9 +94,11 @@ function Falha({ aoSair }: { aoSair: () => void }) {
 }
 
 function Sistema({ aoSair }: { aoSair?: () => void }) {
-  const { loja, usuario, erro } = useStore()
+  const { loja, usuario, erro, papel, trocarSenha } = useStore()
   const [rota, setRota] = useState(rotaAtual)
   const [menuAberto, setMenuAberto] = useState(false)
+  const [modalSenha, setModalSenha] = useState(false)
+  const modulos = MODULOS.filter(m => !m.soGestor || podeGerenciarUsuarios(papel))
 
   useEffect(() => {
     const f = () => { setRota(rotaAtual()); setMenuAberto(false) }
@@ -112,6 +117,7 @@ function Sistema({ aoSair }: { aoSair?: () => void }) {
     produtos: <ProdutosPage />,
     laboratorios: <LaboratoriosPage />,
     financeiro: <FinanceiroPage />,
+    usuarios: <UsuariosPage />,
   }[rota] ?? <DashboardPage irPara={irPara} />
 
   return (
@@ -121,13 +127,20 @@ function Sistema({ aoSair }: { aoSair?: () => void }) {
         {loja.nome || 'Gestão Ótica'}
       </header>
       <nav className={`lateral ${menuAberto ? 'aberta' : ''}`} onClick={e => e.target === e.currentTarget && setMenuAberto(false)}>
-        <div className="logo">
-          <span className="logo-marca">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="7" cy="13" r="4" /><circle cx="17" cy="13" r="4" /><path d="M11 13h2" /></svg>
-          </span>
-          Gestão Ótica
-        </div>
-        {MODULOS.map(m => (
+        {loja.logoIconeUrl ? (
+          <div className="logo">
+            <img src={loja.logoIconeUrl} alt="" width={36} height={36} style={{ borderRadius: '50%', flex: 'none' }} />
+            <span style={{ lineHeight: 1.15 }}>{loja.nome}<span className="fraco" style={{ display: 'block', fontWeight: 600 }}>Gestão Ótica</span></span>
+          </div>
+        ) : (
+          <div className="logo">
+            <span className="logo-marca">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="7" cy="13" r="4" /><circle cx="17" cy="13" r="4" /><path d="M11 13h2" /></svg>
+            </span>
+            Gestão Ótica
+          </div>
+        )}
+        {modulos.map(m => (
           <div key={m.rota}>
             {m.grupo && <div className="menu-grupo">{m.grupo}</div>}
             <a href={`#${m.rota}`} className={`menu-item ${rota === m.rota ? 'ativo' : ''}`} onClick={() => setMenuAberto(false)}>
@@ -139,7 +152,10 @@ function Sistema({ aoSair }: { aoSair?: () => void }) {
           {aoSair ? (
             <div style={{ display: 'grid', gap: 6 }}>
               <div><b style={{ color: 'var(--tinta)' }}>{loja.nome}</b><div>{usuario}</div></div>
-              <Botao pequeno onClick={aoSair}>Sair</Botao>
+              <div className="linha" style={{ gap: 6 }}>
+                <Botao pequeno onClick={() => setModalSenha(true)}>Trocar senha</Botao>
+                <Botao pequeno onClick={aoSair}>Sair</Botao>
+              </div>
             </div>
           ) : 'Protótipo · dados de exemplo'}
         </div>
@@ -153,6 +169,9 @@ function Sistema({ aoSair }: { aoSair?: () => void }) {
         )}
         {pagina}
       </main>
+      {(modalSenha || (trocarSenha && !!aoSair)) && (
+        <TrocarSenha obrigatoria={trocarSenha} aoFechar={() => setModalSenha(false)} />
+      )}
     </div>
   )
 }

@@ -28,7 +28,7 @@ export const FORMAS: Record<FormaPagamento, string> = {
   crediario_loja: 'Crediário da loja',
 }
 
-export interface Loja { id: string; nome: string; cnpj: string; telefone: string; endereco: string }
+export interface Loja { id: string; nome: string; cnpj: string; telefone: string; endereco: string; logoUrl?: string; logoIconeUrl?: string }
 export interface Cliente { id: string; nome: string; cpf: string; celular: string; nascimento?: string; endereco?: string }
 export interface Produto {
   id: string; tipo: TipoProduto; descricao: string; marca: string; unidade: UnidadeVenda
@@ -37,6 +37,11 @@ export interface Produto {
 }
 export interface Laboratorio { id: string; nome: string; prazoDias: number; telefone?: string; ativo: boolean }
 export interface Vendedor { id: string; nome: string }
+export type Papel = 'admin' | 'gerente' | 'vendedor' | 'vendedor_externo' | 'caixa'
+export interface Usuario { id: string; nome: string; papel: Papel; email: string; ativo: boolean }
+export const PAPEIS: Record<Papel, string> = {
+  admin: 'Administrador', gerente: 'Gerente', vendedor: 'Vendedor', vendedor_externo: 'Vendedor externo', caixa: 'Caixa',
+}
 /** `novo`: ainda não gravado no caixa (é gravado ao salvar a OS) */
 export interface Pagamento { id: string; forma: FormaPagamento; valor: Centavos; em: string; novo?: boolean }
 export interface Parcela extends ParcelaSimulada { id: string; osNumero: number; osId?: string; clienteId: string; pago: boolean }
@@ -65,6 +70,10 @@ export interface Agendamento { id: string; clienteNome: string; tipo: string; in
 interface Estado {
   loja: Loja
   usuario: string
+  perfilId: string
+  papel: Papel
+  trocarSenha: boolean
+  usuarios: Usuario[]
   carregando: boolean
   erro: string
   clientes: Cliente[]
@@ -77,7 +86,7 @@ interface Estado {
 }
 
 const vazio: Estado = {
-  loja: { id: '', nome: '', cnpj: '', telefone: '', endereco: '' }, usuario: '', carregando: false, erro: '',
+  loja: { id: '', nome: '', cnpj: '', telefone: '', endereco: '' }, usuario: '', perfilId: '', papel: 'vendedor', trocarSenha: false, usuarios: [], carregando: false, erro: '',
   clientes: [], produtos: [], laboratorios: [], vendedores: [], ordens: [], parcelas: [], agendamentos: [],
 }
 
@@ -109,7 +118,14 @@ export type ResultadoInicio = 'ok' | 'sem_loja'
 export async function iniciar(): Promise<ResultadoInicio> {
   if (MODO_DEMO) {
     const { dadosDemo } = await import('./mock')
-    estado = { ...vazio, ...dadosDemo(), usuario: 'Demonstração' }
+    const demo = dadosDemo()
+    estado = {
+      ...vazio, ...demo, usuario: 'Demonstração', perfilId: 'demo-admin', papel: 'admin',
+      usuarios: [
+        { id: 'demo-admin', nome: 'Demonstração', papel: 'admin', email: 'demo@exemplo.com', ativo: true },
+        ...demo.vendedores.map(v => ({ id: v.id, nome: v.nome, papel: 'vendedor' as Papel, email: `${v.nome.toLowerCase()}@exemplo.com`, ativo: true })),
+      ],
+    }
     emitir()
     return 'ok'
   }
@@ -118,7 +134,7 @@ export async function iniciar(): Promise<ResultadoInicio> {
     const perfil = await repo.carregarPerfil()
     if (!perfil) { atualizar(() => ({ carregando: false })); return 'sem_loja' }
     const dados = await repo.carregarTudo(perfil.loja.id)
-    estado = { ...vazio, ...dados, loja: perfil.loja, usuario: perfil.nomeUsuario }
+    estado = { ...vazio, ...dados, loja: perfil.loja, usuario: perfil.nomeUsuario, perfilId: perfil.perfilId, papel: perfil.papel, trocarSenha: perfil.trocarSenha }
     emitir()
     return 'ok'
   } catch (e) {
@@ -204,3 +220,43 @@ export async function mudarStatusAgendamento(id: string, status: Agendamento['st
   atualizar(e => ({ agendamentos: e.agendamentos.map(a => (a.id === id ? { ...a, status } : a)) }))
 }
 
+
+// ---- usuários e senha ----
+export const podeGerenciarUsuarios = (p: Papel) => p === 'admin' || p === 'gerente'
+
+const sincronizarVendedores = (usuarios: Usuario[]) =>
+  usuarios.filter(u => u.ativo).map(u => ({ id: u.id, nome: u.nome })).sort((a, b) => a.nome.localeCompare(b.nome))
+
+export async function criarUsuario(u: { email: string; nome: string; papel: Papel; senha: string }): Promise<{ loginExistente: boolean }> {
+  let novo: Usuario
+  let loginExistente = false
+  if (MODO_DEMO) {
+    novo = { id: novoId(), nome: u.nome.trim(), papel: u.papel, email: u.email.trim().toLowerCase(), ativo: true }
+  } else {
+    const r = await repo.chamarGerenciarUsuarios({ acao: 'criar', ...u })
+    novo = { id: r.perfil.id, nome: r.perfil.nome, papel: r.perfil.papel, email: r.perfil.email ?? u.email, ativo: true }
+    loginExistente = !!r.login_existente
+  }
+  atualizar(e => {
+    const usuarios = [...e.usuarios, novo].sort((a, b) => a.nome.localeCompare(b.nome))
+    return { usuarios, vendedores: sincronizarVendedores(usuarios) }
+  })
+  return { loginExistente }
+}
+
+export async function alterarUsuario(id: string, mudar: Partial<Pick<Usuario, 'nome' | 'papel' | 'ativo'>>) {
+  if (!MODO_DEMO) await repo.chamarGerenciarUsuarios({ acao: 'alterar', perfil_id: id, ...mudar })
+  atualizar(e => {
+    const usuarios = e.usuarios.map(u => (u.id === id ? { ...u, ...mudar } : u))
+    return { usuarios, vendedores: sincronizarVendedores(usuarios) }
+  })
+}
+
+export async function redefinirSenhaUsuario(id: string, senha: string) {
+  if (!MODO_DEMO) await repo.chamarGerenciarUsuarios({ acao: 'redefinir_senha', perfil_id: id, senha })
+}
+
+export async function trocarMinhaSenha(novaSenha: string) {
+  if (!MODO_DEMO) await repo.trocarSenhaPropria(novaSenha)
+  atualizar(() => ({ trocarSenha: false }))
+}

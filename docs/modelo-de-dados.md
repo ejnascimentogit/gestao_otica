@@ -6,7 +6,10 @@ Projeto Supabase `gestao-otica` (ref `mhouxtzeomirluezzaql`, São Paulo).
 |---|---|---|
 | `20261027000001_schema_inicial.sql` | Tabelas, gatilhos e RLS | Aplicada em 27/10/2026 |
 | `20261027000002_permissoes_e_storage.sql` | `GRANT` da Data API e bucket `receitas` | Aplicada em 27/10/2026 |
-| `20261027000003_gatilho_historico_e_crediario.sql` | Gatilho de histórico como dono; função `gerar_crediario` | A aplicar |
+| `20261027000003_gatilho_historico_e_crediario.sql` | Gatilho de histórico como dono; função `gerar_crediario` | Aplicada em 27/10/2026 |
+| `20261028000004_email_no_perfil.sql` | `perfis.email` e `lojas.logo_icone_url` | A aplicar |
+
+Edge Function `gerenciar-usuarios` (`supabase/functions/gerenciar-usuarios/index.ts`): cria usuários da loja, redefine senha e altera nome/papel/situação. Publicada com **Verify JWT desligado**; a função confere o token e o papel (admin ou gerente). Usa a chave secreta do ambiente (`SUPABASE_SECRET_KEYS`), nunca exposta ao front.
 
 Depois das migrações: `supabase/setup/primeira-loja.sql` cria a primeira loja e liga o usuário a ela (feito em 27/10/2026: loja `Ótica Teste`, admin `ejnotica@gmail.com`). `supabase/setup/produtos-e-laboratorios-exemplo.sql` cadastra laboratórios e produtos para teste.
 

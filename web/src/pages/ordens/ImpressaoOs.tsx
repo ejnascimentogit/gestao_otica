@@ -29,8 +29,9 @@ export function ImpressaoOs({ os }: { os: OrdemServico }) {
     <div>
       {VIAS.map(via => (
         <div key={via.nome} className="via" style={st.via}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid #111', paddingBottom: 8 }}>
-            <div><b style={{ fontSize: 16 }}>{LOJA.nome}</b><div>{LOJA.endereco} · {LOJA.telefone}</div><div>CNPJ {LOJA.cnpj}</div></div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '2px solid #111', paddingBottom: 8 }}>
+            {LOJA.logoUrl && <img src={LOJA.logoUrl} alt="" width={64} height={64} style={{ marginRight: 12 }} />}
+            <div style={{ flex: 1 }}><b style={{ fontSize: 16 }}>{LOJA.nome}</b><div>{LOJA.endereco} · {LOJA.telefone}</div><div>CNPJ {LOJA.cnpj}</div></div>
             <div style={{ textAlign: 'right' }}><b style={{ fontSize: 16 }}>OS nº {os.numero}</b><div>{via.nome}</div><div>Data {formatarData(os.dataOs)} · Entrega {formatarData(os.previsao)}</div></div>
           </div>
 

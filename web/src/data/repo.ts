@@ -6,7 +6,7 @@ import { receitaVazia, type Receita } from '../domain/receita'
 import { subtotal, totalOs, type ItemOs } from '../domain/totais'
 import type { ParcelaSimulada, MetodoJuros } from '../domain/crediario'
 import type {
-  Agendamento, Cliente, FormaPagamento, Laboratorio, Loja, OrdemServico, Parcela, Produto, Vendedor,
+  Agendamento, Cliente, FormaPagamento, Laboratorio, Loja, OrdemServico, Papel, Parcela, Produto, Usuario, Vendedor,
 } from './store'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -22,12 +22,12 @@ function falhou(error: { message: string } | null, contexto: string) {
 }
 
 // ---------- sessão ----------
-export async function carregarPerfil(): Promise<{ loja: Loja; nomeUsuario: string } | null> {
+export async function carregarPerfil(): Promise<{ loja: Loja; nomeUsuario: string; perfilId: string; papel: Papel; trocarSenha: boolean } | null> {
   const { data: u } = await sb.auth.getUser()
   if (!u.user) return null
   const { data, error } = await sb
     .from('perfis')
-    .select('nome, loja_id, lojas(id, nome, cnpj, telefone, endereco)')
+    .select('id, nome, papel, loja_id, lojas(id, nome, cnpj, telefone, endereco, logo_url, logo_icone_url)')
     .eq('user_id', u.user.id)
     .eq('ativo', true)
     .limit(1)
@@ -37,7 +37,13 @@ export async function carregarPerfil(): Promise<{ loja: Loja; nomeUsuario: strin
   const l = umOuNada(p.lojas) as Linha
   return {
     nomeUsuario: p.nome,
-    loja: { id: l.id, nome: l.nome, cnpj: l.cnpj ?? '', telefone: l.telefone ?? '', endereco: l.endereco?.texto ?? '' },
+    perfilId: p.id,
+    papel: p.papel,
+    trocarSenha: u.user.user_metadata?.trocar_senha === true,
+    loja: {
+      id: l.id, nome: l.nome, cnpj: l.cnpj ?? '', telefone: l.telefone ?? '', endereco: l.endereco?.texto ?? '',
+      logoUrl: l.logo_url ?? undefined, logoIconeUrl: l.logo_icone_url ?? undefined,
+    },
   }
 }
 
@@ -124,7 +130,7 @@ export async function carregarTudo(lojaId: string) {
     sb.from('clientes').select('*').eq('loja_id', lojaId).order('nome'),
     sb.from('produtos').select('*').eq('loja_id', lojaId).order('descricao'),
     sb.from('laboratorios').select('*').eq('loja_id', lojaId).order('nome'),
-    sb.from('perfis').select('id, nome').eq('loja_id', lojaId).eq('ativo', true).order('nome'),
+    sb.from('perfis').select('id, nome, papel, email, ativo').eq('loja_id', lojaId).order('nome'),
     sb.from('ordens_servico').select('*, receitas(*), os_itens(*), caixa_movimentos(*), crediarios(*)').eq('loja_id', lojaId).order('numero', { ascending: false }),
     sb.from('parcelas').select('*, crediarios(os_id, ordens_servico(numero))').eq('loja_id', lojaId).order('vencimento'),
     sb.from('agendamentos').select('*, clientes(nome)').eq('loja_id', lojaId).order('inicio'),
@@ -136,7 +142,8 @@ export async function carregarTudo(lojaId: string) {
     clientes: (cl.data as Linha[]).map(clienteDeDb),
     produtos: (pr.data as Linha[]).map(produtoDeDb),
     laboratorios: (lab.data as Linha[]).map((l): Laboratorio => ({ id: l.id, nome: l.nome, prazoDias: l.prazo_dias ?? 7, telefone: l.telefone ?? undefined, ativo: l.ativo !== false })),
-    vendedores: (vend.data as Linha[]).map((v): Vendedor => ({ id: v.id, nome: v.nome })),
+    vendedores: (vend.data as Linha[]).filter(v => v.ativo).map((v): Vendedor => ({ id: v.id, nome: v.nome })),
+    usuarios: (vend.data as Linha[]).map((v): Usuario => ({ id: v.id, nome: v.nome, papel: v.papel, email: v.email ?? '', ativo: v.ativo !== false })),
     ordens: (os.data as Linha[]).map(osDeDb),
     parcelas: (parc.data as Linha[]).map((p): Parcela => {
       const c = umOuNada(p.crediarios)
@@ -255,4 +262,31 @@ export async function inserirAgendamento(lojaId: string, a: Agendamento) {
 export async function atualizarStatusAgendamento(id: string, status: Agendamento['status']) {
   const { error } = await sb.from('agendamentos').update({ status }).eq('id', id)
   falhou(error, 'Atualizar agendamento')
+}
+
+// ---------- usuários (Edge Function gerenciar-usuarios) ----------
+export async function chamarGerenciarUsuarios(corpo: Record<string, unknown>): Promise<Linha> {
+  const { data, error } = await sb.functions.invoke('gerenciar-usuarios', { body: corpo })
+  if (error) {
+    // A função devolve { erro: "mensagem" } com status 4xx: mostra a mensagem dela
+    let msg = error.message
+    const ctx = (error as { context?: Response }).context
+    if (ctx && typeof ctx.json === 'function') {
+      try { const j = await ctx.json(); if (j?.erro) msg = j.erro } catch { /* mantém a mensagem padrão */ }
+    }
+    if (/Failed to send a request|FunctionsFetchError|not found/i.test(msg)) {
+      msg = 'A função de usuários ainda não está publicada no Supabase (gerenciar-usuarios).'
+    }
+    throw new Error(msg)
+  }
+  return data as Linha
+}
+
+export async function trocarSenhaPropria(novaSenha: string) {
+  const { error } = await sb.auth.updateUser({ password: novaSenha, data: { trocar_senha: false } })
+  if (error) {
+    if (/different from the old|same/i.test(error.message)) throw new Error('A nova senha precisa ser diferente da atual.')
+    if (/weak|least/i.test(error.message)) throw new Error('Senha fraca: use pelo menos 8 caracteres, misturando letras e números.')
+    throw new Error(`Não foi possível trocar a senha: ${error.message}`)
+  }
 }

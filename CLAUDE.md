@@ -17,6 +17,8 @@ Sistema de gestão para óticas (OS, receita, crediário, financeiro, simulador 
 - Criado com Data API ligada, **"expor tabelas automaticamente" desligado** (toda tabela nova precisa de `GRANT` explícito) e **RLS automática** ligada.
 - **Front:** Cloudflare Workers, projeto `gestao-otica` (conta `ejnascimento1@gmail.com`), deploy pelo Workers Builds: raiz `web`, build `npm run build`, deploy `npx wrangler deploy` (config em `web/wrangler.jsonc`).
 - **Login:** Supabase Auth (e-mail e senha). URL e chave publishable ficam em `web/src/lib/supabase.ts` (públicas por desenho; a secret nunca vai no front).
+- **Usuários:** criados pela tela Usuários (admin/gerente) via Edge Function `gerenciar-usuarios`. Senha provisória obriga troca no primeiro acesso (`user_metadata.trocar_senha`).
+- **Logo da loja:** `lojas.logo_url` (selo, impressões) e `lojas.logo_icone_url` (menu). Arquivos da Ótica Nascimento em `web/public/logos/`.
 - **Modo demonstração:** `npm run build:single` gera o protótipo com dados de exemplo, sem login (`MODO_DEMO`).
 - Antes do primeiro cliente pagante: plano Pro (o Free pausa por inatividade e não tem backup).
 
