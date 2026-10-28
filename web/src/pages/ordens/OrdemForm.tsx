@@ -40,7 +40,7 @@ export function OrdemForm({ inicial, aoVoltar }: { inicial: OrdemServico; aoVolt
     ? clientes.filter(c => (c.nome + c.cpf + c.celular).toLowerCase().includes(busca.toLowerCase())).slice(0, 6)
     : []
   const sugestoesProd = buscaProd.length >= 2
-    ? produtos.filter(p => p.descricao.toLowerCase().includes(buscaProd.toLowerCase())).slice(0, 6)
+    ? produtos.filter(p => p.ativo && (p.descricao + ' ' + (p.codigo ?? '')).toLowerCase().includes(buscaProd.toLowerCase())).slice(0, 6)
     : []
 
   const upd = (patch: Partial<OrdemServico>) => setOs(o => ({ ...o, ...patch }))
@@ -157,7 +157,7 @@ export function OrdemForm({ inicial, aoVoltar }: { inicial: OrdemServico; aoVolt
                   upd({ laboratorioId: e.target.value || null, previsao: os.previsao ?? (lab ? somarDias(os.dataOs, lab.prazoDias) : null) })
                 }}>
                   <option value="">Selecione</option>
-                  {laboratorios.map(l => <option key={l.id} value={l.id}>{l.nome} ({l.prazoDias} dias)</option>)}
+                  {laboratorios.filter(l => l.ativo || l.id === os.laboratorioId).map(l => <option key={l.id} value={l.id}>{l.nome} ({l.prazoDias} dias)</option>)}
                 </Selecao>
               </Campo>
               <Campo rotulo="Controle interno"><Entrada value={os.controleInterno} placeholder="Opcional" onChange={e => upd({ controleInterno: e.target.value })} /></Campo>

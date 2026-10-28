@@ -49,7 +49,8 @@ const clienteDeDb = (r: Linha): Cliente => ({
 
 const produtoDeDb = (r: Linha): Produto => ({
   id: r.id, tipo: r.tipo, descricao: r.descricao, marca: r.marca ?? '', unidade: r.unidade_venda,
-  preco: cent(r.preco), indice: num(r.indice_refracao) ?? undefined, estoque: Number(r.estoque ?? 0),
+  preco: cent(r.preco), custo: cent(r.custo), estoque: Number(r.estoque ?? 0), ativo: r.ativo !== false,
+  codigo: r.codigo ?? undefined, indice: num(r.indice_refracao) ?? undefined, desenho: r.desenho_lente ?? undefined,
 })
 
 function receitaDeDb(r: Linha | null): Receita {
@@ -121,8 +122,8 @@ function paraLocal(ts: string): string {
 export async function carregarTudo(lojaId: string) {
   const [cl, pr, lab, vend, os, parc, ag] = await Promise.all([
     sb.from('clientes').select('*').eq('loja_id', lojaId).order('nome'),
-    sb.from('produtos').select('*').eq('loja_id', lojaId).eq('ativo', true).order('descricao'),
-    sb.from('laboratorios').select('*').eq('loja_id', lojaId).eq('ativo', true).order('nome'),
+    sb.from('produtos').select('*').eq('loja_id', lojaId).order('descricao'),
+    sb.from('laboratorios').select('*').eq('loja_id', lojaId).order('nome'),
     sb.from('perfis').select('id, nome').eq('loja_id', lojaId).eq('ativo', true).order('nome'),
     sb.from('ordens_servico').select('*, receitas(*), os_itens(*), caixa_movimentos(*), crediarios(*)').eq('loja_id', lojaId).order('numero', { ascending: false }),
     sb.from('parcelas').select('*, crediarios(os_id, ordens_servico(numero))').eq('loja_id', lojaId).order('vencimento'),
@@ -134,7 +135,7 @@ export async function carregarTudo(lojaId: string) {
   return {
     clientes: (cl.data as Linha[]).map(clienteDeDb),
     produtos: (pr.data as Linha[]).map(produtoDeDb),
-    laboratorios: (lab.data as Linha[]).map((l): Laboratorio => ({ id: l.id, nome: l.nome, prazoDias: l.prazo_dias ?? 7 })),
+    laboratorios: (lab.data as Linha[]).map((l): Laboratorio => ({ id: l.id, nome: l.nome, prazoDias: l.prazo_dias ?? 7, telefone: l.telefone ?? undefined, ativo: l.ativo !== false })),
     vendedores: (vend.data as Linha[]).map((v): Vendedor => ({ id: v.id, nome: v.nome })),
     ordens: (os.data as Linha[]).map(osDeDb),
     parcelas: (parc.data as Linha[]).map((p): Parcela => {
@@ -223,6 +224,24 @@ export async function darBaixaParcela(lojaId: string, p: Parcela, forma: FormaPa
     descricao: `Parcela ${p.numero} da OS ${p.osNumero}`,
   })
   falhou(mv.error, 'Lançar baixa no caixa')
+}
+
+export async function gravarProduto(lojaId: string, p: Produto) {
+  const { error } = await sb.from('produtos').upsert({
+    id: p.id, loja_id: lojaId, tipo: p.tipo, descricao: p.descricao.trim(), marca: p.marca.trim() || null,
+    codigo: p.codigo?.trim() || null, unidade_venda: p.unidade, custo: reais(p.custo), preco: reais(p.preco),
+    estoque: p.estoque, ativo: p.ativo,
+    indice_refracao: p.tipo === 'lente' ? p.indice ?? null : null,
+    desenho_lente: p.tipo === 'lente' ? p.desenho || null : null,
+  })
+  falhou(error, 'Salvar produto')
+}
+
+export async function gravarLaboratorio(lojaId: string, l: Laboratorio) {
+  const { error } = await sb.from('laboratorios').upsert({
+    id: l.id, loja_id: lojaId, nome: l.nome.trim(), prazo_dias: l.prazoDias, telefone: l.telefone?.trim() || null, ativo: l.ativo,
+  })
+  falhou(error, 'Salvar laboratório')
 }
 
 export async function inserirAgendamento(lojaId: string, a: Agendamento) {

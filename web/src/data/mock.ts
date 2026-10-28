@@ -14,7 +14,7 @@ const clientes: Cliente[] = [
   { id: 'c4', nome: 'Roberto Fernandes', cpf: '321.654.987-00', celular: '(81) 99555-0101' },
 ]
 
-const produtos: Produto[] = [
+const produtosBase: Omit<Produto, 'custo' | 'ativo'>[] = [
   { id: 'p1', tipo: 'lente', descricao: 'Lente monofocal 1.56 antirreflexo', marca: 'Genérica', unidade: 'UN', preco: 9000, indice: 1.56, estoque: 40 },
   { id: 'p2', tipo: 'lente', descricao: 'Lente monofocal 1.67 filtro azul', marca: 'Genérica', unidade: 'UN', preco: 22000, indice: 1.67, estoque: 18 },
   { id: 'p3', tipo: 'lente', descricao: 'Lente multifocal freeform 1.59', marca: 'Genérica', unidade: 'PAR', preco: 89000, indice: 1.59, estoque: 6 },
@@ -24,10 +24,13 @@ const produtos: Produto[] = [
   { id: 'p7', tipo: 'servico', descricao: 'Montagem e ajuste', marca: '—', unidade: 'UN', preco: 3000, estoque: 0 },
 ]
 
-const laboratorios: Laboratorio[] = [
+const laboratoriosBase: Omit<Laboratorio, 'ativo'>[] = [
   { id: 'l1', nome: 'Lab Óptico Recife', prazoDias: 5 },
   { id: 'l2', nome: 'Surfaçagem Nordeste', prazoDias: 7 },
 ]
+
+const produtos: Produto[] = produtosBase.map(p => ({ ...p, custo: Math.round(p.preco * 0.42), ativo: true }))
+const laboratorios: Laboratorio[] = laboratoriosBase.map(l => ({ ...l, ativo: true }))
 
 const vendedores: Vendedor[] = [
   { id: 'v1', nome: 'Carla' },

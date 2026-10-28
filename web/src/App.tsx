@@ -7,6 +7,8 @@ import { FinanceiroPage } from './pages/FinanceiroPage'
 import { AgendaPage } from './pages/AgendaPage'
 import { SimuladorPage } from './pages/SimuladorPage'
 import { LoginPage } from './pages/LoginPage'
+import { ProdutosPage } from './pages/ProdutosPage'
+import { LaboratoriosPage } from './pages/LaboratoriosPage'
 import { MODO_DEMO, sb } from './lib/supabase'
 import { encerrar, iniciar, limparErro, useStore } from './data/store'
 
@@ -17,6 +19,8 @@ const MODULOS: Array<{ rota: string; rotulo: string; icone: ReactNode; grupo?: s
   { rota: 'agenda', rotulo: 'Agenda', icone: Icone.agenda },
   { rota: 'simulador', rotulo: 'Simulador de lentes', icone: Icone.simulador },
   { rota: 'clientes', rotulo: 'Clientes', icone: Icone.clientes, grupo: 'Cadastros' },
+  { rota: 'produtos', rotulo: 'Produtos e serviços', icone: Icone.produtos },
+  { rota: 'laboratorios', rotulo: 'Laboratórios', icone: Icone.laboratorio },
   { rota: 'financeiro', rotulo: 'Financeiro', icone: Icone.financeiro, grupo: 'Gestão' },
 ]
 
@@ -105,6 +109,8 @@ function Sistema({ aoSair }: { aoSair?: () => void }) {
     agenda: <AgendaPage />,
     simulador: <SimuladorPage />,
     clientes: <ClientesPage />,
+    produtos: <ProdutosPage />,
+    laboratorios: <LaboratoriosPage />,
     financeiro: <FinanceiroPage />,
   }[rota] ?? <DashboardPage irPara={irPara} />
 

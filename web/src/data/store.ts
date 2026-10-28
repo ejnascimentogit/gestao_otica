@@ -30,8 +30,12 @@ export const FORMAS: Record<FormaPagamento, string> = {
 
 export interface Loja { id: string; nome: string; cnpj: string; telefone: string; endereco: string }
 export interface Cliente { id: string; nome: string; cpf: string; celular: string; nascimento?: string; endereco?: string }
-export interface Produto { id: string; tipo: TipoProduto; descricao: string; marca: string; unidade: UnidadeVenda; preco: Centavos; indice?: number; estoque: number }
-export interface Laboratorio { id: string; nome: string; prazoDias: number }
+export interface Produto {
+  id: string; tipo: TipoProduto; descricao: string; marca: string; unidade: UnidadeVenda
+  preco: Centavos; custo: Centavos; estoque: number; ativo: boolean
+  codigo?: string; indice?: number; desenho?: string
+}
+export interface Laboratorio { id: string; nome: string; prazoDias: number; telefone?: string; ativo: boolean }
 export interface Vendedor { id: string; nome: string }
 /** `novo`: ainda não gravado no caixa (é gravado ao salvar a OS) */
 export interface Pagamento { id: string; forma: FormaPagamento; valor: Centavos; em: string; novo?: boolean }
@@ -169,6 +173,24 @@ export async function baixarParcela(id: string, forma: FormaPagamento = 'dinheir
   if (!p) return
   if (!MODO_DEMO) await repo.darBaixaParcela(estado.loja.id, p, forma)
   atualizar(e => ({ parcelas: e.parcelas.map(x => (x.id === id ? { ...x, pago: true } : x)) }))
+}
+
+export async function salvarProduto(p: Produto): Promise<Produto> {
+  if (!MODO_DEMO) await repo.gravarProduto(estado.loja.id, p)
+  atualizar(e => ({
+    produtos: (e.produtos.some(x => x.id === p.id) ? e.produtos.map(x => (x.id === p.id ? p : x)) : [...e.produtos, p])
+      .sort((a, b) => a.descricao.localeCompare(b.descricao)),
+  }))
+  return p
+}
+
+export async function salvarLaboratorio(l: Laboratorio): Promise<Laboratorio> {
+  if (!MODO_DEMO) await repo.gravarLaboratorio(estado.loja.id, l)
+  atualizar(e => ({
+    laboratorios: (e.laboratorios.some(x => x.id === l.id) ? e.laboratorios.map(x => (x.id === l.id ? l : x)) : [...e.laboratorios, l])
+      .sort((a, b) => a.nome.localeCompare(b.nome)),
+  }))
+  return l
 }
 
 export async function salvarAgendamento(a: Omit<Agendamento, 'id'>) {

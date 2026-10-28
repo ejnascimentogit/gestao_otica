@@ -27,7 +27,7 @@ export function AgendaPage() {
   return (
     <div>
       <PageHeader titulo="Agenda" acoes={<Botao variante="primario" onClick={() => setNovo(true)}>{Icone.mais} Novo agendamento</Botao>} />
-      <div className="duas-colunas" style={{ gridTemplateColumns: '340px minmax(0,1fr)' }}>
+      <div className="duas-colunas agenda-grade">
         <Card titulo={primeiro.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })} acoes={<div className="linha"><Botao pequeno onClick={() => mudarMes(-1)}>‹</Botao><Botao pequeno onClick={() => mudarMes(1)}>›</Botao></div>}>
           <div className="calendario">
             {DOW.map(d => <div key={d} className="dow">{d}</div>)}
