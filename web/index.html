@@ -4,6 +4,19 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Gestão Ótica</title>
+    <script>
+      /* Aparência salva no navegador: aplica antes de pintar para não piscar (src/lib/aparencia.ts) */
+      try {
+        var d = document.documentElement, m = localStorage.getItem('go_modo'), c = localStorage.getItem('go_tema_css'), b = localStorage.getItem('go_contorno');
+        if (m) d.setAttribute('data-theme', m);
+        if (c) { var s = document.createElement('style'); s.id = 'tema-usuario'; s.textContent = c; document.head.appendChild(s); }
+        if (b !== null && b !== '') {
+          var esc = m ? m === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+          var a = (0.06 + Math.max(0, Math.min(100, +b)) / 100 * 0.34).toFixed(2);
+          d.style.setProperty('--borda', esc ? 'rgba(200, 214, 212, ' + a + ')' : 'rgba(29, 42, 42, ' + a + ')');
+        }
+      } catch (e) {}
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   </head>

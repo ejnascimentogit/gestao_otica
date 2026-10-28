@@ -11,6 +11,7 @@ import { ProdutosPage } from './pages/ProdutosPage'
 import { LaboratoriosPage } from './pages/LaboratoriosPage'
 import { UsuariosPage } from './pages/UsuariosPage'
 import { TrocarSenha } from './components/TrocarSenha'
+import { Aparencia } from './components/Aparencia'
 import { MODO_DEMO, sb } from './lib/supabase'
 import { encerrar, iniciar, limparErro, podeGerenciarUsuarios, useStore } from './data/store'
 
@@ -98,6 +99,7 @@ function Sistema({ aoSair }: { aoSair?: () => void }) {
   const [rota, setRota] = useState(rotaAtual)
   const [menuAberto, setMenuAberto] = useState(false)
   const [modalSenha, setModalSenha] = useState(false)
+  const [modalAparencia, setModalAparencia] = useState(false)
   const modulos = MODULOS.filter(m => !m.soGestor || podeGerenciarUsuarios(papel))
 
   useEffect(() => {
@@ -153,11 +155,17 @@ function Sistema({ aoSair }: { aoSair?: () => void }) {
             <div style={{ display: 'grid', gap: 6 }}>
               <div><b style={{ color: 'var(--tinta)' }}>{loja.nome}</b><div>{usuario}</div></div>
               <div className="linha" style={{ gap: 6 }}>
+                <Botao pequeno onClick={() => setModalAparencia(true)}>Aparência</Botao>
                 <Botao pequeno onClick={() => setModalSenha(true)}>Trocar senha</Botao>
                 <Botao pequeno onClick={aoSair}>Sair</Botao>
               </div>
             </div>
-          ) : 'Protótipo · dados de exemplo'}
+          ) : (
+            <div style={{ display: 'grid', gap: 6 }}>
+              <span>Protótipo · dados de exemplo</span>
+              <div><Botao pequeno onClick={() => setModalAparencia(true)}>Aparência</Botao></div>
+            </div>
+          )}
         </div>
       </nav>
       <main className="conteudo">
@@ -169,6 +177,7 @@ function Sistema({ aoSair }: { aoSair?: () => void }) {
         )}
         {pagina}
       </main>
+      {modalAparencia && <Aparencia aoFechar={() => setModalAparencia(false)} />}
       {(modalSenha || (trocarSenha && !!aoSair)) && (
         <TrocarSenha obrigatoria={trocarSenha} aoFechar={() => setModalSenha(false)} />
       )}

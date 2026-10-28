@@ -19,6 +19,7 @@ Sistema de gestão para óticas (OS, receita, crediário, financeiro, simulador 
 - **Login:** Supabase Auth (e-mail e senha). URL e chave publishable ficam em `web/src/lib/supabase.ts` (públicas por desenho; a secret nunca vai no front).
 - **Usuários:** criados pela tela Usuários (admin/gerente) via Edge Function `gerenciar-usuarios`. Senha provisória obriga troca no primeiro acesso (`user_metadata.trocar_senha`).
 - **Logo da loja:** `lojas.logo_url` (selo, impressões) e `lojas.logo_icone_url` (menu). Arquivos da Ótica Nascimento em `web/public/logos/`.
+- **Aparência (pessoal, no navegador):** botão Aparência no rodapé do menu → modo escuro, linhas e contornos (Suave–Forte) e Estúdio "Temas e cores" (12 temas por clima, círculo cromático com harmonias, intensidade, menu claro/escuro, ajuste fino, teste de contraste 4,5, meus temas). Mesma proposta do Taskfull. Cálculo em `web/src/domain/temas.ts` (com teste), aplicação em `web/src/lib/aparencia.ts`, aplicado antes de pintar por um script no `web/index.html` (chaves `go_tema`, `go_tema_css`, `go_temas_meus`, `go_modo`, `go_contorno`). Cor nova no CSS: usar as variáveis (`--marca-tinta` para texto sobre `--marca`, `--lateral-*` no menu), nunca cor fixa.
 - **Modo demonstração:** `npm run build:single` gera o protótipo com dados de exemplo, sem login (`MODO_DEMO`).
 - Antes do primeiro cliente pagante: plano Pro (o Free pausa por inatividade e não tem backup).
 
