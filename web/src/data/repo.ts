@@ -5,8 +5,9 @@ import { hojeISO, type Centavos } from '../domain/formatos'
 import { receitaVazia, type Receita } from '../domain/receita'
 import { subtotal, totalOs, type ItemOs } from '../domain/totais'
 import type { ParcelaSimulada, MetodoJuros } from '../domain/crediario'
+import type { StatusInteressado } from '../domain/catalogo'
 import type {
-  Agendamento, Cliente, FormaPagamento, Laboratorio, Loja, OrdemServico, Papel, Parcela, Produto, Usuario, Vendedor,
+  Agendamento, Catalogo, CatalogoPublico, Interessado, Cliente, FormaPagamento, Laboratorio, Loja, OrdemServico, Papel, Parcela, Produto, Usuario, Vendedor,
 } from './store'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -57,6 +58,7 @@ const produtoDeDb = (r: Linha): Produto => ({
   id: r.id, tipo: r.tipo, descricao: r.descricao, marca: r.marca ?? '', unidade: r.unidade_venda,
   preco: cent(r.preco), custo: cent(r.custo), estoque: Number(r.estoque ?? 0), ativo: r.ativo !== false,
   codigo: r.codigo ?? undefined, indice: num(r.indice_refracao) ?? undefined, desenho: r.desenho_lente ?? undefined,
+  fotoUrl: r.foto_url ?? undefined, noCatalogo: r.no_catalogo === true,
 })
 
 function receitaDeDb(r: Linha | null): Receita {
@@ -233,13 +235,15 @@ export async function darBaixaParcela(lojaId: string, p: Parcela, forma: FormaPa
   falhou(mv.error, 'Lançar baixa no caixa')
 }
 
-export async function gravarProduto(lojaId: string, p: Produto) {
+export async function gravarProduto(lojaId: string, p: Produto, comCatalogo = true) {
   const { error } = await sb.from('produtos').upsert({
     id: p.id, loja_id: lojaId, tipo: p.tipo, descricao: p.descricao.trim(), marca: p.marca.trim() || null,
     codigo: p.codigo?.trim() || null, unidade_venda: p.unidade, custo: reais(p.custo), preco: reais(p.preco),
     estoque: p.estoque, ativo: p.ativo,
     indice_refracao: p.tipo === 'lente' ? p.indice ?? null : null,
     desenho_lente: p.tipo === 'lente' ? p.desenho || null : null,
+    // colunas do catálogo só existem depois da migração 5
+    ...(comCatalogo ? { foto_url: p.fotoUrl || null, no_catalogo: !!p.noCatalogo } : {}),
   })
   falhou(error, 'Salvar produto')
 }
@@ -289,4 +293,71 @@ export async function trocarSenhaPropria(novaSenha: string) {
     if (/weak|least/i.test(error.message)) throw new Error('Senha fraca: use pelo menos 8 caracteres, misturando letras e números.')
     throw new Error(`Não foi possível trocar a senha: ${error.message}`)
   }
+}
+
+// ---------- catálogo ----------
+const catalogoDeDb = (r: Linha): Catalogo => ({
+  slug: r.slug, ativo: !!r.ativo, whatsapp: r.whatsapp ?? '', titulo: r.titulo ?? '', apresentacao: r.apresentacao ?? '',
+})
+const interessadoDeDb = (r: Linha): Interessado => ({
+  id: r.id, produtoId: r.produto_id ?? null, produtoDescricao: r.produto_descricao ?? null, nome: r.nome, whatsapp: r.whatsapp,
+  status: r.status as StatusInteressado, clienteId: r.cliente_id ?? null, criadoEm: r.criado_em,
+})
+
+/** Carrega a configuração e os interessados. `disponivel: false` = migração 5 ainda não aplicada. */
+export async function carregarCatalogo(lojaId: string): Promise<{ disponivel: boolean; catalogo: Catalogo | null; interessados: Interessado[] }> {
+  const [c, i] = await Promise.all([
+    sb.from('catalogos').select('*').eq('loja_id', lojaId).maybeSingle(),
+    sb.from('interessados_catalogo').select('*').eq('loja_id', lojaId).order('criado_em', { ascending: false }).limit(500),
+  ])
+  if (c.error || i.error) return { disponivel: false, catalogo: null, interessados: [] }
+  return { disponivel: true, catalogo: c.data ? catalogoDeDb(c.data) : null, interessados: (i.data as Linha[]).map(interessadoDeDb) }
+}
+
+export async function gravarCatalogo(lojaId: string, c: Catalogo) {
+  const { error } = await sb.from('catalogos').upsert({
+    loja_id: lojaId, slug: c.slug, ativo: c.ativo, whatsapp: c.whatsapp || null,
+    titulo: c.titulo.trim() || null, apresentacao: c.apresentacao.trim() || null, atualizado_em: new Date().toISOString(),
+  })
+  if (error?.code === '23505') throw new Error('Esse endereço já está em uso por outra loja. Escolha outro.')
+  if (error && /row-level security/i.test(error.message)) throw new Error('Só administrador ou gerente pode alterar o catálogo.')
+  falhou(error, 'Salvar catálogo')
+}
+
+export async function atualizarInteressado(id: string, mudar: { status?: StatusInteressado; clienteId?: string | null }) {
+  const linha: Linha = {}
+  if (mudar.status) linha.status = mudar.status
+  if (mudar.clienteId !== undefined) linha.cliente_id = mudar.clienteId
+  const { error } = await sb.from('interessados_catalogo').update(linha).eq('id', id)
+  falhou(error, 'Atualizar interessado')
+}
+
+/** Envia a foto (já reduzida) e devolve o endereço público */
+export async function enviarFotoProduto(lojaId: string, produtoId: string, foto: Blob): Promise<string> {
+  const caminho = `${lojaId}/${produtoId}-${Date.now()}.jpg`
+  const { error } = await sb.storage.from('catalogo').upload(caminho, foto, { contentType: 'image/jpeg', cacheControl: '31536000' })
+  falhou(error, 'Enviar foto')
+  return sb.storage.from('catalogo').getPublicUrl(caminho).data.publicUrl
+}
+
+// ---------- catálogo público (cliente sem login) ----------
+export async function carregarCatalogoPublico(slug: string): Promise<CatalogoPublico | null> {
+  const { data, error } = await sb.rpc('catalogo_publico', { p_slug: slug })
+  falhou(error, 'Abrir catálogo')
+  if (!data) return null
+  const d = data as Linha
+  return {
+    loja: { nome: d.loja?.nome ?? '', telefone: d.loja?.telefone ?? '', logoUrl: d.loja?.logo_url ?? undefined, logoIconeUrl: d.loja?.logo_icone_url ?? undefined },
+    titulo: d.titulo ?? '', apresentacao: d.apresentacao ?? '', whatsapp: d.whatsapp ?? '',
+    produtos: ((d.produtos ?? []) as Linha[]).map(p => ({
+      id: p.id, tipo: p.tipo, descricao: p.descricao, marca: p.marca ?? '', preco: cent(p.preco), fotoUrl: p.foto_url ?? undefined,
+    })),
+  }
+}
+
+export async function registrarInteresse(slug: string, produtoId: string | null, nome: string, whatsapp: string) {
+  const { data, error } = await sb.rpc('catalogo_registrar_interesse', { p_slug: slug, p_produto_id: produtoId, p_nome: nome, p_whatsapp: whatsapp })
+  falhou(error, 'Registrar interesse')
+  const r = data as Linha
+  if (r && r.ok === false) throw new Error(r.erro || 'Não foi possível registrar.')
 }

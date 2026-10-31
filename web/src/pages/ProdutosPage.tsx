@@ -4,6 +4,7 @@ import { formatarMoeda, paraCentavos } from '../domain/formatos'
 import { DESENHOS_LENTE, INDICES_REFRACAO, TIPOS_PRODUTO, margemPct, validarProduto } from '../domain/produtos'
 import type { TipoProduto } from '../domain/totais'
 import { novoId, salvarProduto, tentar, useStore, type Produto } from '../data/store'
+import { FotoProduto } from '../components/FotoProduto'
 
 const novoProduto = (): Produto => ({
   id: novoId(), tipo: 'lente', descricao: '', marca: '', unidade: 'UN', preco: 0, custo: 0, estoque: 0, ativo: true,
@@ -91,7 +92,7 @@ function DinheiroInput({ id, valor, aoMudar, invalida }: { id: string; valor: nu
 }
 
 function ModalProduto({ inicial, aoFechar }: { inicial: Produto; aoFechar: () => void }) {
-  const { produtos } = useStore()
+  const { produtos, catalogoDisponivel } = useStore()
   const [p, setP] = useState<Produto>(inicial)
   const [tentouSalvar, setTentouSalvar] = useState(false)
   const [salvando, setSalvando] = useState(false)
@@ -161,6 +162,16 @@ function ModalProduto({ inicial, aoFechar }: { inicial: Produto; aoFechar: () =>
           </>
         )}
       </div>
+      {catalogoDisponivel && p.tipo !== 'servico' && (
+        <div style={{ borderTop: '1px solid var(--borda)', marginTop: 14, paddingTop: 14, display: 'grid', gap: 12 }}>
+          <b>Catálogo da loja</b>
+          <FotoProduto produtoId={p.id} url={p.fotoUrl} aoMudar={url => upd({ fotoUrl: url })} />
+          <label className="chave-linha">
+            <input type="checkbox" className="ap-chave" checked={!!p.noCatalogo} onChange={e => upd({ noCatalogo: e.target.checked })} />
+            <span>Mostrar no catálogo (link que a loja manda aos clientes)</span>
+          </label>
+        </div>
+      )}
       <p className="fraco" style={{ marginBottom: 0 }}>
         Margem: <b>{m === null ? '—' : `${m.toFixed(1).replace('.', ',')}%`}</b>
         {p.tipo === 'lente' && p.unidade === 'UN' && ' · Lente por unidade entra na OS com quantidade 2 (o par).'}

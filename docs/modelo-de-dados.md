@@ -7,7 +7,8 @@ Projeto Supabase `gestao-otica` (ref `mhouxtzeomirluezzaql`, São Paulo).
 | `20261027000001_schema_inicial.sql` | Tabelas, gatilhos e RLS | Aplicada em 27/10/2026 |
 | `20261027000002_permissoes_e_storage.sql` | `GRANT` da Data API e bucket `receitas` | Aplicada em 27/10/2026 |
 | `20261027000003_gatilho_historico_e_crediario.sql` | Gatilho de histórico como dono; função `gerar_crediario` | Aplicada em 27/10/2026 |
-| `20261028000004_email_no_perfil.sql` | `perfis.email` e `lojas.logo_icone_url` | A aplicar |
+| `20261028000004_email_no_perfil.sql` | `perfis.email` e `lojas.logo_icone_url` | Aplicada em 28/10/2026 |
+| `20261031000005_catalogo_e_interessados.sql` | Foto e "no catálogo" em `produtos`; `catalogos`; `interessados_catalogo`; funções públicas `catalogo_publico` e `catalogo_registrar_interesse`; bucket público `catalogo` | A aplicar |
 
 Edge Function `gerenciar-usuarios` (`supabase/functions/gerenciar-usuarios/index.ts`): cria usuários da loja, redefine senha e altera nome/papel/situação. Publicada com **Verify JWT desligado**; a função confere o token e o papel (admin ou gerente). Usa a chave secreta do ambiente (`SUPABASE_SECRET_KEYS`), nunca exposta ao front.
 
@@ -51,6 +52,8 @@ erDiagram
 | `crediarios` / `parcelas` | Crediário próprio | Parcelas geradas pelo domínio, gravadas em transação |
 | `contas_pagar` | Fornecedores/labs | |
 | `agendamentos` | Agenda | Cliente cadastrado ou nome avulso |
+| `catalogos` | Catálogo da loja (1 por loja) | `slug` = endereço público `/catalogo/<slug>`; WhatsApp da loja; só admin/gerente altera |
+| `interessados_catalogo` | Contatos vindos do catálogo | Inserção só pela função `catalogo_registrar_interesse` (sem login, com limite por número e por loja) |
 
 ## Segurança (RLS)
 Todas as tabelas de negócio: `loja_id in (select minhas_lojas())` para leitura e escrita.

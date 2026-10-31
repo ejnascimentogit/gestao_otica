@@ -10,6 +10,9 @@ import { LoginPage } from './pages/LoginPage'
 import { ProdutosPage } from './pages/ProdutosPage'
 import { LaboratoriosPage } from './pages/LaboratoriosPage'
 import { UsuariosPage } from './pages/UsuariosPage'
+import { CatalogoPage } from './pages/catalogo/CatalogoPage'
+import { CatalogoPublicoPage } from './pages/catalogo/CatalogoPublicoPage'
+import { slugDoCaminho } from './domain/catalogo'
 import { TrocarSenha } from './components/TrocarSenha'
 import { Aparencia } from './components/Aparencia'
 import { MODO_DEMO, sb } from './lib/supabase'
@@ -21,6 +24,7 @@ const MODULOS: Array<{ rota: string; rotulo: string; icone: ReactNode; grupo?: s
   { rota: 'ordens', rotulo: 'Ordens de serviço', icone: Icone.os, grupo: 'Atendimento' },
   { rota: 'agenda', rotulo: 'Agenda', icone: Icone.agenda },
   { rota: 'simulador', rotulo: 'Simulador de lentes', icone: Icone.simulador },
+  { rota: 'catalogo', rotulo: 'Catálogo', icone: Icone.catalogo },
   { rota: 'clientes', rotulo: 'Clientes', icone: Icone.clientes, grupo: 'Cadastros' },
   { rota: 'produtos', rotulo: 'Produtos e serviços', icone: Icone.produtos },
   { rota: 'laboratorios', rotulo: 'Laboratórios', icone: Icone.laboratorio },
@@ -33,6 +37,13 @@ const rotaAtual = () => window.location.hash.replace(/^#\/?/, '') || 'painel'
 type Fase = 'verificando' | 'login' | 'sem_loja' | 'carregando' | 'pronto' | 'falha'
 
 export default function App() {
+  // Link público do catálogo (/catalogo/<endereço>): abre sem login
+  const slugPublico = MODO_DEMO ? null : slugDoCaminho(window.location.pathname)
+  if (slugPublico) return <CatalogoPublicoPage slug={slugPublico} />
+  return <AppInterno />
+}
+
+function AppInterno() {
   const [fase, setFase] = useState<Fase>('verificando')
 
   useEffect(() => {
@@ -95,7 +106,7 @@ function Falha({ aoSair }: { aoSair: () => void }) {
 }
 
 function Sistema({ aoSair }: { aoSair?: () => void }) {
-  const { loja, usuario, erro, papel, trocarSenha } = useStore()
+  const { loja, usuario, erro, papel, trocarSenha, interessados, catalogo } = useStore()
   const [rota, setRota] = useState(rotaAtual)
   const [menuAberto, setMenuAberto] = useState(false)
   const [modalSenha, setModalSenha] = useState(false)
@@ -110,6 +121,11 @@ function Sistema({ aoSair }: { aoSair?: () => void }) {
 
   const irPara = (r: string) => { window.location.hash = r }
 
+  const novosInteressados = interessados.filter(i => i.status === 'novo').length
+  if (rota === 'catalogo-publico' && MODO_DEMO) {
+    return <CatalogoPublicoPage slug={catalogo?.slug ?? ''} aoVoltar={() => irPara('catalogo')} />
+  }
+
   const pagina = {
     painel: <DashboardPage irPara={irPara} />,
     ordens: <OrdensPage />,
@@ -120,6 +136,7 @@ function Sistema({ aoSair }: { aoSair?: () => void }) {
     laboratorios: <LaboratoriosPage />,
     financeiro: <FinanceiroPage />,
     usuarios: <UsuariosPage />,
+    catalogo: <CatalogoPage />,
   }[rota] ?? <DashboardPage irPara={irPara} />
 
   return (
@@ -146,7 +163,8 @@ function Sistema({ aoSair }: { aoSair?: () => void }) {
           <div key={m.rota}>
             {m.grupo && <div className="menu-grupo">{m.grupo}</div>}
             <a href={`#${m.rota}`} className={`menu-item ${rota === m.rota ? 'ativo' : ''}`} onClick={() => setMenuAberto(false)}>
-              {m.icone}{m.rotulo}
+              {m.icone}<span style={{ flex: 1 }}>{m.rotulo}</span>
+              {m.rota === 'catalogo' && novosInteressados > 0 && <span className="menu-contador" title="Interessados novos">{novosInteressados}</span>}
             </a>
           </div>
         ))}

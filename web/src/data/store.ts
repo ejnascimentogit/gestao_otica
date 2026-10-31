@@ -5,6 +5,8 @@ import type { Centavos } from '../domain/formatos'
 import type { Receita } from '../domain/receita'
 import type { ItemOs, TipoProduto, UnidadeVenda } from '../domain/totais'
 import type { MetodoJuros, ParcelaSimulada } from '../domain/crediario'
+import type { StatusInteressado } from '../domain/catalogo'
+import { formatarWhatsapp } from '../domain/catalogo'
 import { MODO_DEMO } from '../lib/supabase'
 import * as repo from './repo'
 
@@ -34,6 +36,18 @@ export interface Produto {
   id: string; tipo: TipoProduto; descricao: string; marca: string; unidade: UnidadeVenda
   preco: Centavos; custo: Centavos; estoque: number; ativo: boolean
   codigo?: string; indice?: number; desenho?: string
+  /** catálogo da loja */
+  fotoUrl?: string; noCatalogo?: boolean
+}
+export interface Catalogo { slug: string; ativo: boolean; whatsapp: string; titulo: string; apresentacao: string }
+export interface Interessado {
+  id: string; produtoId: string | null; produtoDescricao: string | null; nome: string; whatsapp: string
+  status: StatusInteressado; clienteId: string | null; criadoEm: string
+}
+export interface ProdutoPublico { id: string; tipo: TipoProduto; descricao: string; marca: string; preco: Centavos; fotoUrl?: string }
+export interface CatalogoPublico {
+  loja: { nome: string; telefone: string; logoUrl?: string; logoIconeUrl?: string }
+  titulo: string; apresentacao: string; whatsapp: string; produtos: ProdutoPublico[]
 }
 export interface Laboratorio { id: string; nome: string; prazoDias: number; telefone?: string; ativo: boolean }
 export interface Vendedor { id: string; nome: string }
@@ -83,11 +97,16 @@ interface Estado {
   ordens: OrdemServico[]
   parcelas: Parcela[]
   agendamentos: Agendamento[]
+  /** false enquanto a migração 5 (catálogo) não foi aplicada no banco */
+  catalogoDisponivel: boolean
+  catalogo: Catalogo | null
+  interessados: Interessado[]
 }
 
 const vazio: Estado = {
   loja: { id: '', nome: '', cnpj: '', telefone: '', endereco: '' }, usuario: '', perfilId: '', papel: 'vendedor', trocarSenha: false, usuarios: [], carregando: false, erro: '',
   clientes: [], produtos: [], laboratorios: [], vendedores: [], ordens: [], parcelas: [], agendamentos: [],
+  catalogoDisponivel: false, catalogo: null, interessados: [],
 }
 
 let estado: Estado = vazio
@@ -133,8 +152,10 @@ export async function iniciar(): Promise<ResultadoInicio> {
   try {
     const perfil = await repo.carregarPerfil()
     if (!perfil) { atualizar(() => ({ carregando: false })); return 'sem_loja' }
-    const dados = await repo.carregarTudo(perfil.loja.id)
-    estado = { ...vazio, ...dados, loja: perfil.loja, usuario: perfil.nomeUsuario, perfilId: perfil.perfilId, papel: perfil.papel, trocarSenha: perfil.trocarSenha }
+    const [dados, cat] = await Promise.all([repo.carregarTudo(perfil.loja.id), repo.carregarCatalogo(perfil.loja.id)])
+    estado = {
+      ...vazio, ...dados, catalogoDisponivel: cat.disponivel, catalogo: cat.catalogo, interessados: cat.interessados, loja: perfil.loja, usuario: perfil.nomeUsuario, perfilId: perfil.perfilId, papel: perfil.papel, trocarSenha: perfil.trocarSenha,
+    }
     emitir()
     return 'ok'
   } catch (e) {
@@ -192,7 +213,7 @@ export async function baixarParcela(id: string, forma: FormaPagamento = 'dinheir
 }
 
 export async function salvarProduto(p: Produto): Promise<Produto> {
-  if (!MODO_DEMO) await repo.gravarProduto(estado.loja.id, p)
+  if (!MODO_DEMO) await repo.gravarProduto(estado.loja.id, p, estado.catalogoDisponivel)
   atualizar(e => ({
     produtos: (e.produtos.some(x => x.id === p.id) ? e.produtos.map(x => (x.id === p.id ? p : x)) : [...e.produtos, p])
       .sort((a, b) => a.descricao.localeCompare(b.descricao)),
@@ -259,4 +280,55 @@ export async function redefinirSenhaUsuario(id: string, senha: string) {
 export async function trocarMinhaSenha(novaSenha: string) {
   if (!MODO_DEMO) await repo.trocarSenhaPropria(novaSenha)
   atualizar(() => ({ trocarSenha: false }))
+}
+
+// ---- catálogo ----
+export async function salvarCatalogo(c: Catalogo) {
+  if (!MODO_DEMO) await repo.gravarCatalogo(estado.loja.id, c)
+  atualizar(() => ({ catalogo: c }))
+}
+
+/** Reduz e envia a foto; devolve o endereço para guardar no produto */
+export async function enviarFotoProduto(produtoId: string, foto: Blob): Promise<string> {
+  if (MODO_DEMO) return URL.createObjectURL(foto)
+  return repo.enviarFotoProduto(estado.loja.id, produtoId, foto)
+}
+
+export async function mudarStatusInteressado(id: string, status: StatusInteressado) {
+  if (!MODO_DEMO) await repo.atualizarInteressado(id, { status })
+  atualizar(e => ({ interessados: e.interessados.map(i => (i.id === id ? { ...i, status } : i)) }))
+}
+
+/** Cadastra o interessado como cliente (ou liga a um cliente com o mesmo celular) */
+export async function interessadoVirarCliente(id: string): Promise<Cliente | null> {
+  const i = estado.interessados.find(x => x.id === id)
+  if (!i) return null
+  const digitos = (t: string) => t.replace(/\D/g, '').replace(/^55(?=\d{10,11}$)/, '')
+  const existente = estado.clientes.find(c => c.celular && digitos(c.celular) === digitos(i.whatsapp))
+  const cliente = existente ?? await salvarCliente({ nome: i.nome, cpf: '', celular: formatarWhatsapp(i.whatsapp) })
+  if (!MODO_DEMO) await repo.atualizarInteressado(id, { status: 'virou_cliente', clienteId: cliente.id })
+  atualizar(e => ({ interessados: e.interessados.map(x => (x.id === id ? { ...x, status: 'virou_cliente', clienteId: cliente.id } : x)) }))
+  return cliente
+}
+
+/** Catálogo público: no modo demonstração monta a partir dos dados de exemplo */
+export async function abrirCatalogoPublico(slug: string): Promise<CatalogoPublico | null> {
+  if (!MODO_DEMO) return repo.carregarCatalogoPublico(slug)
+  const c = estado.catalogo
+  if (!c || !c.ativo) return null
+  return {
+    loja: { nome: estado.loja.nome, telefone: estado.loja.telefone, logoUrl: estado.loja.logoUrl, logoIconeUrl: estado.loja.logoIconeUrl },
+    titulo: c.titulo, apresentacao: c.apresentacao, whatsapp: c.whatsapp,
+    produtos: estado.produtos.filter(p => p.ativo && p.noCatalogo)
+      .map(p => ({ id: p.id, tipo: p.tipo, descricao: p.descricao, marca: p.marca, preco: p.preco, fotoUrl: p.fotoUrl })),
+  }
+}
+
+export async function registrarInteressePublico(slug: string, produto: ProdutoPublico | null, nome: string, whatsapp: string) {
+  if (!MODO_DEMO) return repo.registrarInteresse(slug, produto?.id ?? null, nome, whatsapp)
+  const novo: Interessado = {
+    id: novoId(), produtoId: produto?.id ?? null, produtoDescricao: produto?.descricao ?? null, nome: nome.trim(),
+    whatsapp, status: 'novo', clienteId: null, criadoEm: new Date().toISOString(),
+  }
+  atualizar(e => ({ interessados: [novo, ...e.interessados] }))
 }

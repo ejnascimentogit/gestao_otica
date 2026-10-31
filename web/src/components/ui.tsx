@@ -79,5 +79,6 @@ export const Icone = {
   camera: <svg viewBox="0 0 24 24" {...p}><path d="M4 8h3l2-3h6l2 3h3v11H4z" /><circle cx="12" cy="13" r="3.5" /></svg>,
   laboratorio: <svg viewBox="0 0 24 24" {...p}><path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.8 3h10.4a2 2 0 0 0 1.8-3l-5-9V3" /><path d="M7.5 15h9" /></svg>,
   chave: <svg viewBox="0 0 24 24" {...p}><circle cx="8" cy="15" r="4" /><path d="M11 12l9-9M17 6l3 3M14 9l2 2" /></svg>,
+  catalogo: <svg viewBox="0 0 24 24" {...p}><rect x="3" y="4" width="18" height="16" rx="2" /><circle cx="8.5" cy="12.5" r="2.5" /><circle cx="15.5" cy="12.5" r="2.5" /><path d="M11 12.5h2M3 8h18" /></svg>,
   lixo: <svg viewBox="0 0 24 24" {...p}><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" /></svg>,
 }

@@ -2,7 +2,7 @@
 import { hojeISO, somarDias } from '../domain/formatos'
 import { receitaVazia } from '../domain/receita'
 import type { ItemOs } from '../domain/totais'
-import type { Agendamento, Cliente, Laboratorio, OrdemServico, Parcela, Produto, StatusOs, Vendedor } from './store'
+import type { Agendamento, Catalogo, Interessado, Cliente, Laboratorio, OrdemServico, Parcela, Produto, StatusOs, Vendedor } from './store'
 
 const uid = () => Math.random().toString(36).slice(2, 10)
 const hoje = hojeISO()
@@ -29,7 +29,29 @@ const laboratoriosBase: Omit<Laboratorio, 'ativo'>[] = [
   { id: 'l2', nome: 'Surfaçagem Nordeste', prazoDias: 7 },
 ]
 
-const produtos: Produto[] = produtosBase.map(p => ({ ...p, custo: Math.round(p.preco * 0.42), ativo: true }))
+// Fotos de exemplo do catálogo: desenhos simples de armação (feitos para o projeto)
+function fotoArmacao(cor: string, formato: 'redonda' | 'retangular' | 'gatinho'): string {
+  const lente = formato === 'redonda'
+    ? (x: number) => `<circle cx="${x}" cy="60" r="34"/>`
+    : formato === 'retangular'
+      ? (x: number) => `<rect x="${x - 40}" y="34" width="80" height="54" rx="12"/>`
+      : (x: number) => `<path d="M${x - 42} 44 Q${x} 26 ${x + 42} 38 Q${x + 40} 92 ${x} 90 Q${x - 38} 88 ${x - 42} 44Z"/>`
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160"><rect width="300" height="160" fill="#f3f1ec"/>`
+    + `<g fill="none" stroke="${cor}" stroke-width="7" stroke-linejoin="round">${lente(98)}${lente(202)}<path d="M132 56 Q150 44 168 56"/>`
+    + `<path d="M${formato === 'redonda' ? 64 : 58} 52 L18 44M${formato === 'redonda' ? 236 : 242} 52 L282 44"/></g></svg>`
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
+}
+
+const armacoesCatalogo: Omit<Produto, 'custo' | 'ativo'>[] = [
+  { id: 'p8', tipo: 'armacao', descricao: 'Armação gatinho acetato vinho', marca: 'Casa', unidade: 'UN', preco: 27900, estoque: 4, fotoUrl: fotoArmacao('#7a2340', 'gatinho'), noCatalogo: true },
+  { id: 'p9', tipo: 'armacao', descricao: 'Armação redonda metal dourada', marca: 'Casa', unidade: 'UN', preco: 21900, estoque: 6, fotoUrl: fotoArmacao('#b8892f', 'redonda'), noCatalogo: true },
+  { id: 'p10', tipo: 'armacao', descricao: 'Armação retangular preta fosca', marca: 'Casa', unidade: 'UN', preco: 18900, estoque: 8, fotoUrl: fotoArmacao('#22262a', 'retangular'), noCatalogo: true },
+]
+
+const produtos: Produto[] = [...produtosBase, ...armacoesCatalogo].map(p => ({
+  ...p, custo: Math.round(p.preco * 0.42), ativo: true,
+  ...(p.id === 'p5' ? { fotoUrl: fotoArmacao('#1f3a5f', 'retangular'), noCatalogo: true } : {}),
+}))
 const laboratorios: Laboratorio[] = laboratoriosBase.map(l => ({ ...l, ativo: true }))
 
 const vendedores: Vendedor[] = [
@@ -75,7 +97,18 @@ const agendamentos: Agendamento[] = [
   { id: uid(), clienteNome: 'Roberto Fernandes', tipo: 'Ajuste', inicio: `${somarDias(hoje, 1)}T09:00`, status: 'agendado' },
 ]
 
+const catalogo: Catalogo = {
+  slug: 'otica-exemplo', ativo: true, whatsapp: '5581999990000',
+  titulo: 'Nossas armações', apresentacao: 'Escolha com calma e toque em "Tenho interesse" para falar com a gente pelo WhatsApp.',
+}
+
+const interessados: Interessado[] = [
+  { id: 'i1', produtoId: 'p8', produtoDescricao: 'Armação gatinho acetato vinho', nome: 'Juliana Cavalcanti', whatsapp: '5581988887777', status: 'novo', clienteId: null, criadoEm: new Date(Date.now() - 40 * 60000).toISOString() },
+  { id: 'i2', produtoId: 'p10', produtoDescricao: 'Armação retangular preta fosca', nome: 'Marcos Vinícius', whatsapp: '5581977776666', status: 'em_contato', clienteId: null, criadoEm: new Date(Date.now() - 26 * 3600000).toISOString() },
+]
+
 export const dadosDemo = () => ({
+  catalogoDisponivel: true, catalogo, interessados,
   loja: { id: 'demo', nome: 'Ótica Exemplo', cnpj: '00.000.000/0001-00', telefone: '(81) 3333-0000', endereco: 'Rua Exemplo, 100 — Recife/PE' },
   clientes, produtos, laboratorios, vendedores, ordens, parcelas, agendamentos,
 })
