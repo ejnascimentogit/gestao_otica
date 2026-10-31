@@ -45,3 +45,30 @@ export function FotoProduto({ produtoId, url, aoMudar }: { produtoId: string; ur
     </div>
   )
 }
+
+/** Imagem do provador: armação de frente, sem hastes. Tira o fundo branco sozinho. */
+export function ImagemProvador({ produtoId, url, aoMudar }: { produtoId: string; url?: string; aoMudar: (url: string | undefined) => void }) {
+  const entrada = useRef<HTMLInputElement>(null)
+  const [enviando, setEnviando] = useState(false)
+
+  async function escolheu(arquivo?: File) {
+    if (!arquivo) return
+    setEnviando(true)
+    const { prepararImagemProvador } = await import('../lib/imagem')
+    const novo = await tentar(async () => enviarFotoProduto(produtoId, await prepararImagemProvador(arquivo), 'provador'))
+    setEnviando(false)
+    if (novo) aoMudar(novo)
+  }
+
+  return (
+    <div className="linha" style={{ gap: 12, alignItems: 'center' }}>
+      <span className="foto-produto" style={{ background: '#ecd3c0' }}>{url ? <img src={url} alt="Armação para o provador" /> : <SemFoto tamanho={56} />}</span>
+      <div style={{ display: 'grid', gap: 6 }}>
+        <input ref={entrada} type="file" accept="image/*" hidden onChange={e => { escolheu(e.target.files?.[0]); e.target.value = '' }} />
+        <Botao pequeno disabled={enviando} onClick={() => entrada.current?.click()}>{enviando ? 'Preparando…' : url ? 'Trocar imagem do provador' : 'Imagem do provador'}</Botao>
+        {url && <Botao pequeno variante="fantasma" onClick={() => aoMudar(undefined)}>Remover</Botao>}
+        <span className="fraco">Armação de frente, sem hastes, sobre papel branco. O fundo sai sozinho.</span>
+      </div>
+    </div>
+  )
+}

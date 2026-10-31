@@ -58,7 +58,7 @@ const produtoDeDb = (r: Linha): Produto => ({
   id: r.id, tipo: r.tipo, descricao: r.descricao, marca: r.marca ?? '', unidade: r.unidade_venda,
   preco: cent(r.preco), custo: cent(r.custo), estoque: Number(r.estoque ?? 0), ativo: r.ativo !== false,
   codigo: r.codigo ?? undefined, indice: num(r.indice_refracao) ?? undefined, desenho: r.desenho_lente ?? undefined,
-  fotoUrl: r.foto_url ?? undefined, noCatalogo: r.no_catalogo === true,
+  fotoUrl: r.foto_url ?? undefined, noCatalogo: r.no_catalogo === true, provadorUrl: r.provador_url ?? undefined,
 })
 
 function receitaDeDb(r: Linha | null): Receita {
@@ -235,7 +235,7 @@ export async function darBaixaParcela(lojaId: string, p: Parcela, forma: FormaPa
   falhou(mv.error, 'Lançar baixa no caixa')
 }
 
-export async function gravarProduto(lojaId: string, p: Produto, comCatalogo = true) {
+export async function gravarProduto(lojaId: string, p: Produto, comCatalogo = true, comProvador = false) {
   const { error } = await sb.from('produtos').upsert({
     id: p.id, loja_id: lojaId, tipo: p.tipo, descricao: p.descricao.trim(), marca: p.marca.trim() || null,
     codigo: p.codigo?.trim() || null, unidade_venda: p.unidade, custo: reais(p.custo), preco: reais(p.preco),
@@ -244,6 +244,7 @@ export async function gravarProduto(lojaId: string, p: Produto, comCatalogo = tr
     desenho_lente: p.tipo === 'lente' ? p.desenho || null : null,
     // colunas do catálogo só existem depois da migração 5
     ...(comCatalogo ? { foto_url: p.fotoUrl || null, no_catalogo: !!p.noCatalogo } : {}),
+    ...(comProvador ? { provador_url: p.provadorUrl || null } : {}),
   })
   falhou(error, 'Salvar produto')
 }
@@ -305,13 +306,14 @@ const interessadoDeDb = (r: Linha): Interessado => ({
 })
 
 /** Carrega a configuração e os interessados. `disponivel: false` = migração 5 ainda não aplicada. */
-export async function carregarCatalogo(lojaId: string): Promise<{ disponivel: boolean; catalogo: Catalogo | null; interessados: Interessado[] }> {
-  const [c, i] = await Promise.all([
+export async function carregarCatalogo(lojaId: string): Promise<{ disponivel: boolean; provador: boolean; catalogo: Catalogo | null; interessados: Interessado[] }> {
+  const [c, i, pv] = await Promise.all([
     sb.from('catalogos').select('*').eq('loja_id', lojaId).maybeSingle(),
     sb.from('interessados_catalogo').select('*').eq('loja_id', lojaId).order('criado_em', { ascending: false }).limit(500),
+    sb.from('produtos').select('provador_url').eq('loja_id', lojaId).limit(1),
   ])
-  if (c.error || i.error) return { disponivel: false, catalogo: null, interessados: [] }
-  return { disponivel: true, catalogo: c.data ? catalogoDeDb(c.data) : null, interessados: (i.data as Linha[]).map(interessadoDeDb) }
+  if (c.error || i.error) return { disponivel: false, provador: false, catalogo: null, interessados: [] }
+  return { disponivel: true, provador: !pv.error, catalogo: c.data ? catalogoDeDb(c.data) : null, interessados: (i.data as Linha[]).map(interessadoDeDb) }
 }
 
 export async function gravarCatalogo(lojaId: string, c: Catalogo) {
@@ -333,9 +335,10 @@ export async function atualizarInteressado(id: string, mudar: { status?: StatusI
 }
 
 /** Envia a foto (já reduzida) e devolve o endereço público */
-export async function enviarFotoProduto(lojaId: string, produtoId: string, foto: Blob): Promise<string> {
-  const caminho = `${lojaId}/${produtoId}-${Date.now()}.jpg`
-  const { error } = await sb.storage.from('catalogo').upload(caminho, foto, { contentType: 'image/jpeg', cacheControl: '31536000' })
+export async function enviarFotoProduto(lojaId: string, produtoId: string, foto: Blob, tipo: 'foto' | 'provador' = 'foto'): Promise<string> {
+  const png = tipo === 'provador'
+  const caminho = `${lojaId}/${produtoId}-${tipo}-${Date.now()}.${png ? 'png' : 'jpg'}`
+  const { error } = await sb.storage.from('catalogo').upload(caminho, foto, { contentType: png ? 'image/png' : 'image/jpeg', cacheControl: '31536000' })
   falhou(error, 'Enviar foto')
   return sb.storage.from('catalogo').getPublicUrl(caminho).data.publicUrl
 }
@@ -351,6 +354,7 @@ export async function carregarCatalogoPublico(slug: string): Promise<CatalogoPub
     titulo: d.titulo ?? '', apresentacao: d.apresentacao ?? '', whatsapp: d.whatsapp ?? '',
     produtos: ((d.produtos ?? []) as Linha[]).map(p => ({
       id: p.id, tipo: p.tipo, descricao: p.descricao, marca: p.marca ?? '', preco: cent(p.preco), fotoUrl: p.foto_url ?? undefined,
+      provadorUrl: p.provador_url ?? undefined, codigo: p.codigo ?? undefined,
     })),
   }
 }

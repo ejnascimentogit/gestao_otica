@@ -43,14 +43,14 @@ function fotoArmacao(cor: string, formato: 'redonda' | 'retangular' | 'gatinho')
 }
 
 const armacoesCatalogo: Omit<Produto, 'custo' | 'ativo'>[] = [
-  { id: 'p8', tipo: 'armacao', descricao: 'Armação gatinho acetato vinho', marca: 'Casa', unidade: 'UN', preco: 27900, estoque: 4, fotoUrl: fotoArmacao('#7a2340', 'gatinho'), noCatalogo: true },
-  { id: 'p9', tipo: 'armacao', descricao: 'Armação redonda metal dourada', marca: 'Casa', unidade: 'UN', preco: 21900, estoque: 6, fotoUrl: fotoArmacao('#b8892f', 'redonda'), noCatalogo: true },
-  { id: 'p10', tipo: 'armacao', descricao: 'Armação retangular preta fosca', marca: 'Casa', unidade: 'UN', preco: 18900, estoque: 8, fotoUrl: fotoArmacao('#22262a', 'retangular'), noCatalogo: true },
+  { id: 'p8', tipo: 'armacao', descricao: 'Armação gatinho acetato vinho', marca: 'Casa', unidade: 'UN', preco: 27900, estoque: 4, fotoUrl: fotoArmacao('#7a2340', 'gatinho'), noCatalogo: true, provadorUrl: '/exemplos/armacoes/provador/gatinho-vinho.svg', codigo: '54-17' },
+  { id: 'p9', tipo: 'armacao', descricao: 'Armação redonda metal dourada', marca: 'Casa', unidade: 'UN', preco: 21900, estoque: 6, fotoUrl: fotoArmacao('#b8892f', 'redonda'), noCatalogo: true, provadorUrl: '/exemplos/armacoes/provador/redonda-dourada.svg', codigo: '50-20' },
+  { id: 'p10', tipo: 'armacao', descricao: 'Armação retangular preta fosca', marca: 'Casa', unidade: 'UN', preco: 18900, estoque: 8, fotoUrl: fotoArmacao('#22262a', 'retangular'), noCatalogo: true, provadorUrl: '/exemplos/armacoes/provador/retangular-preta.svg', codigo: '54-18' },
 ]
 
 const produtos: Produto[] = [...produtosBase, ...armacoesCatalogo].map(p => ({
   ...p, custo: Math.round(p.preco * 0.42), ativo: true,
-  ...(p.id === 'p5' ? { fotoUrl: fotoArmacao('#1f3a5f', 'retangular'), noCatalogo: true } : {}),
+  ...(p.id === 'p5' ? { fotoUrl: fotoArmacao('#1f3a5f', 'retangular'), noCatalogo: true, provadorUrl: '/exemplos/armacoes/provador/oval-azul.svg' } : {}),
 }))
 const laboratorios: Laboratorio[] = laboratoriosBase.map(l => ({ ...l, ativo: true }))
 
@@ -108,7 +108,7 @@ const interessados: Interessado[] = [
 ]
 
 export const dadosDemo = () => ({
-  catalogoDisponivel: true, catalogo, interessados,
+  catalogoDisponivel: true, provadorDisponivel: true, catalogo, interessados,
   loja: { id: 'demo', nome: 'Ótica Exemplo', cnpj: '00.000.000/0001-00', telefone: '(81) 3333-0000', endereco: 'Rua Exemplo, 100 — Recife/PE' },
   clientes, produtos, laboratorios, vendedores, ordens, parcelas, agendamentos,
 })

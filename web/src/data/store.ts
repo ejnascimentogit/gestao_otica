@@ -38,13 +38,15 @@ export interface Produto {
   codigo?: string; indice?: number; desenho?: string
   /** catálogo da loja */
   fotoUrl?: string; noCatalogo?: boolean
+  /** imagem de frente, fundo transparente, para o provador virtual */
+  provadorUrl?: string
 }
 export interface Catalogo { slug: string; ativo: boolean; whatsapp: string; titulo: string; apresentacao: string }
 export interface Interessado {
   id: string; produtoId: string | null; produtoDescricao: string | null; nome: string; whatsapp: string
   status: StatusInteressado; clienteId: string | null; criadoEm: string
 }
-export interface ProdutoPublico { id: string; tipo: TipoProduto; descricao: string; marca: string; preco: Centavos; fotoUrl?: string }
+export interface ProdutoPublico { id: string; tipo: TipoProduto; descricao: string; marca: string; preco: Centavos; fotoUrl?: string; provadorUrl?: string; codigo?: string }
 export interface CatalogoPublico {
   loja: { nome: string; telefone: string; logoUrl?: string; logoIconeUrl?: string }
   titulo: string; apresentacao: string; whatsapp: string; produtos: ProdutoPublico[]
@@ -99,6 +101,8 @@ interface Estado {
   agendamentos: Agendamento[]
   /** false enquanto a migração 5 (catálogo) não foi aplicada no banco */
   catalogoDisponivel: boolean
+  /** false enquanto a migração 6 (provador) não foi aplicada */
+  provadorDisponivel: boolean
   catalogo: Catalogo | null
   interessados: Interessado[]
 }
@@ -106,7 +110,7 @@ interface Estado {
 const vazio: Estado = {
   loja: { id: '', nome: '', cnpj: '', telefone: '', endereco: '' }, usuario: '', perfilId: '', papel: 'vendedor', trocarSenha: false, usuarios: [], carregando: false, erro: '',
   clientes: [], produtos: [], laboratorios: [], vendedores: [], ordens: [], parcelas: [], agendamentos: [],
-  catalogoDisponivel: false, catalogo: null, interessados: [],
+  catalogoDisponivel: false, provadorDisponivel: false, catalogo: null, interessados: [],
 }
 
 let estado: Estado = vazio
@@ -154,7 +158,7 @@ export async function iniciar(): Promise<ResultadoInicio> {
     if (!perfil) { atualizar(() => ({ carregando: false })); return 'sem_loja' }
     const [dados, cat] = await Promise.all([repo.carregarTudo(perfil.loja.id), repo.carregarCatalogo(perfil.loja.id)])
     estado = {
-      ...vazio, ...dados, catalogoDisponivel: cat.disponivel, catalogo: cat.catalogo, interessados: cat.interessados, loja: perfil.loja, usuario: perfil.nomeUsuario, perfilId: perfil.perfilId, papel: perfil.papel, trocarSenha: perfil.trocarSenha,
+      ...vazio, ...dados, catalogoDisponivel: cat.disponivel, provadorDisponivel: cat.provador, catalogo: cat.catalogo, interessados: cat.interessados, loja: perfil.loja, usuario: perfil.nomeUsuario, perfilId: perfil.perfilId, papel: perfil.papel, trocarSenha: perfil.trocarSenha,
     }
     emitir()
     return 'ok'
@@ -213,7 +217,7 @@ export async function baixarParcela(id: string, forma: FormaPagamento = 'dinheir
 }
 
 export async function salvarProduto(p: Produto): Promise<Produto> {
-  if (!MODO_DEMO) await repo.gravarProduto(estado.loja.id, p, estado.catalogoDisponivel)
+  if (!MODO_DEMO) await repo.gravarProduto(estado.loja.id, p, estado.catalogoDisponivel, estado.provadorDisponivel)
   atualizar(e => ({
     produtos: (e.produtos.some(x => x.id === p.id) ? e.produtos.map(x => (x.id === p.id ? p : x)) : [...e.produtos, p])
       .sort((a, b) => a.descricao.localeCompare(b.descricao)),
@@ -289,9 +293,9 @@ export async function salvarCatalogo(c: Catalogo) {
 }
 
 /** Reduz e envia a foto; devolve o endereço para guardar no produto */
-export async function enviarFotoProduto(produtoId: string, foto: Blob): Promise<string> {
+export async function enviarFotoProduto(produtoId: string, foto: Blob, tipo: 'foto' | 'provador' = 'foto'): Promise<string> {
   if (MODO_DEMO) return URL.createObjectURL(foto)
-  return repo.enviarFotoProduto(estado.loja.id, produtoId, foto)
+  return repo.enviarFotoProduto(estado.loja.id, produtoId, foto, tipo)
 }
 
 export async function mudarStatusInteressado(id: string, status: StatusInteressado) {
@@ -320,7 +324,7 @@ export async function abrirCatalogoPublico(slug: string): Promise<CatalogoPublic
     loja: { nome: estado.loja.nome, telefone: estado.loja.telefone, logoUrl: estado.loja.logoUrl, logoIconeUrl: estado.loja.logoIconeUrl },
     titulo: c.titulo, apresentacao: c.apresentacao, whatsapp: c.whatsapp,
     produtos: estado.produtos.filter(p => p.ativo && p.noCatalogo)
-      .map(p => ({ id: p.id, tipo: p.tipo, descricao: p.descricao, marca: p.marca, preco: p.preco, fotoUrl: p.fotoUrl })),
+      .map(p => ({ id: p.id, tipo: p.tipo, descricao: p.descricao, marca: p.marca, preco: p.preco, fotoUrl: p.fotoUrl, provadorUrl: p.provadorUrl, codigo: p.codigo })),
   }
 }
 

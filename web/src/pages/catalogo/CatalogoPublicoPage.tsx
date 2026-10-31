@@ -4,6 +4,7 @@
 import { useEffect, useState } from 'react'
 import { Botao, Campo, Entrada, Modal } from '../../components/ui'
 import { SemFoto } from '../../components/FotoProduto'
+import { Provador } from './Provador'
 import { formatarMoeda } from '../../domain/formatos'
 import { linkWhatsapp, mensagemInteresse, validarInteresse } from '../../domain/catalogo'
 import { abrirCatalogoPublico, registrarInteressePublico, type CatalogoPublico, type ProdutoPublico } from '../../data/store'
@@ -12,6 +13,12 @@ const CHAVE_CONTATO = 'go_catalogo_contato'
 const lerContato = (): { nome: string; whatsapp: string } => {
   try { return JSON.parse(localStorage.getItem(CHAVE_CONTATO) || 'null') ?? { nome: '', whatsapp: '' } } catch { return { nome: '', whatsapp: '' } }
 }
+
+const IconeProvar = (
+  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" aria-hidden>
+    <circle cx="12" cy="9" r="5" /><path d="M5 21c1.2-3.5 3.8-5 7-5s5.8 1.5 7 5" /><circle cx="10" cy="9" r="1.6" /><circle cx="14" cy="9" r="1.6" /><path d="M11.6 9h.8" />
+  </svg>
+)
 
 const IconeWhats = (
   <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -23,6 +30,7 @@ export function CatalogoPublicoPage({ slug, aoVoltar }: { slug: string; aoVoltar
   const [cat, setCat] = useState<CatalogoPublico | null | undefined>(undefined)
   const [erro, setErro] = useState('')
   const [escolhido, setEscolhido] = useState<ProdutoPublico | null | 'geral'>(null)
+  const [provando, setProvando] = useState<ProdutoPublico | null>(null)
 
   useEffect(() => {
     abrirCatalogoPublico(slug)
@@ -74,7 +82,10 @@ export function CatalogoPublicoPage({ slug, aoVoltar }: { slug: string; aoVoltar
                   {p.marca && p.marca !== '—' && <span className="fraco">{p.marca}</span>}
                   <span className="pub-preco">{p.preco > 0 ? formatarMoeda(p.preco) : <span style={{ fontSize: 14 }}>Consulte o preço</span>}</span>
                 </div>
-                <Botao variante="primario" disabled={!cat.whatsapp} onClick={() => setEscolhido(p)}>Tenho interesse</Botao>
+                <div className="pub-botoes">
+                  {p.provadorUrl && <Botao onClick={() => setProvando(p)}>{IconeProvar} Provar</Botao>}
+                  <Botao variante="primario" disabled={!cat.whatsapp} onClick={() => setEscolhido(p)}>Tenho interesse</Botao>
+                </div>
               </article>
             ))}
           </div>
@@ -85,6 +96,11 @@ export function CatalogoPublicoPage({ slug, aoVoltar }: { slug: string; aoVoltar
         <div className="pub-rodape">
           <Botao className="whats" onClick={() => setEscolhido('geral')}>{IconeWhats} Falar com a loja no WhatsApp</Botao>
         </div>
+      )}
+
+      {provando && (
+        <Provador produtos={cat.produtos} inicial={provando} nomeLoja={cat.loja.nome} aoFechar={() => setProvando(null)}
+          aoInteresse={p => { setProvando(null); if (cat.whatsapp) setEscolhido(p) }} />
       )}
 
       {escolhido && (
