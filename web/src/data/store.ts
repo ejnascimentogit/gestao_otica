@@ -30,7 +30,7 @@ export const FORMAS: Record<FormaPagamento, string> = {
   crediario_loja: 'Crediário da loja',
 }
 
-export interface Loja { id: string; nome: string; cnpj: string; telefone: string; endereco: string; logoUrl?: string; logoIconeUrl?: string }
+export interface Loja { id: string; nome: string; cnpj: string; telefone: string; endereco: string; logoUrl?: string; logoIconeUrl?: string; codigo?: number }
 export interface Cliente { id: string; nome: string; cpf: string; celular: string; nascimento?: string; endereco?: string }
 export interface Produto {
   id: string; tipo: TipoProduto; descricao: string; marca: string; unidade: UnidadeVenda

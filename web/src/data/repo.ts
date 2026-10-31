@@ -28,7 +28,7 @@ export async function carregarPerfil(): Promise<{ loja: Loja; nomeUsuario: strin
   if (!u.user) return null
   const { data, error } = await sb
     .from('perfis')
-    .select('id, nome, papel, loja_id, lojas(id, nome, cnpj, telefone, endereco, logo_url, logo_icone_url)')
+    .select('id, nome, papel, loja_id, lojas(*)')
     .eq('user_id', u.user.id)
     .eq('ativo', true)
     .limit(1)
@@ -44,6 +44,7 @@ export async function carregarPerfil(): Promise<{ loja: Loja; nomeUsuario: strin
     loja: {
       id: l.id, nome: l.nome, cnpj: l.cnpj ?? '', telefone: l.telefone ?? '', endereco: l.endereco?.texto ?? '',
       logoUrl: l.logo_url ?? undefined, logoIconeUrl: l.logo_icone_url ?? undefined,
+      codigo: typeof l.codigo === 'number' ? l.codigo : undefined,
     },
   }
 }

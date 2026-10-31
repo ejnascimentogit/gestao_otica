@@ -10,6 +10,7 @@ Projeto Supabase `gestao-otica` (ref `mhouxtzeomirluezzaql`, São Paulo).
 | `20261028000004_email_no_perfil.sql` | `perfis.email` e `lojas.logo_icone_url` | Aplicada em 28/10/2026 |
 | `20261031000005_catalogo_e_interessados.sql` | Foto e "no catálogo" em `produtos`; `catalogos`; `interessados_catalogo`; funções públicas `catalogo_publico` e `catalogo_registrar_interesse`; bucket público `catalogo` | Aplicada em 31/10/2026 (em 4 partes) |
 | `20261031000006_provador.sql` | `produtos.provador_url`; `catalogo_publico` devolve código e imagem do provador | Aplicada em 31/10/2026 |
+| `20261031000007_codigo_loja.sql` | `lojas.codigo` (1 = Ótica Nascimento, 2 = Studio Óptico Eucênia; próximas automáticas) | A aplicar |
 
 Edge Function `gerenciar-usuarios` (`supabase/functions/gerenciar-usuarios/index.ts`): cria usuários da loja, redefine senha e altera nome/papel/situação. Publicada com **Verify JWT desligado**; a função confere o token e o papel (admin ou gerente). Usa a chave secreta do ambiente (`SUPABASE_SECRET_KEYS`), nunca exposta ao front.
 

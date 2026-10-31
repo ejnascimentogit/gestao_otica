@@ -149,7 +149,7 @@ function Sistema({ aoSair }: { aoSair?: () => void }) {
         {loja.logoIconeUrl ? (
           <div className="logo">
             <img src={loja.logoIconeUrl} alt="" width={36} height={36} style={{ borderRadius: '50%', flex: 'none' }} />
-            <span style={{ lineHeight: 1.15 }}>{loja.nome}<span className="fraco" style={{ display: 'block', fontWeight: 600 }}>Gestão Ótica</span></span>
+            <span style={{ lineHeight: 1.15 }}>{loja.nome}<span className="fraco" style={{ display: 'block', fontWeight: 600 }}>{loja.codigo ? `Loja ${loja.codigo} · ` : ''}Gestão Ótica</span></span>
           </div>
         ) : (
           <div className="logo">
@@ -171,7 +171,7 @@ function Sistema({ aoSair }: { aoSair?: () => void }) {
         <div className="lateral-rodape">
           {aoSair ? (
             <div style={{ display: 'grid', gap: 6 }}>
-              <div><b style={{ color: 'var(--tinta)' }}>{loja.nome}</b><div>{usuario}</div></div>
+              <div><b style={{ color: 'var(--lateral-forte)' }}>{loja.codigo ? `${loja.codigo} · ` : ''}{loja.nome}</b><div>{usuario}</div></div>
               <div className="linha" style={{ gap: 6 }}>
                 <Botao pequeno onClick={() => setModalAparencia(true)}>Aparência</Botao>
                 <Botao pequeno onClick={() => setModalSenha(true)}>Trocar senha</Botao>

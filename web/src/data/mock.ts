@@ -109,6 +109,6 @@ const interessados: Interessado[] = [
 
 export const dadosDemo = () => ({
   catalogoDisponivel: true, provadorDisponivel: true, catalogo, interessados,
-  loja: { id: 'demo', nome: 'Ótica Exemplo', cnpj: '00.000.000/0001-00', telefone: '(81) 3333-0000', endereco: 'Rua Exemplo, 100 — Recife/PE' },
+  loja: { id: 'demo', codigo: 1, nome: 'Ótica Exemplo', cnpj: '00.000.000/0001-00', telefone: '(81) 3333-0000', endereco: 'Rua Exemplo, 100 — Recife/PE' },
   clientes, produtos, laboratorios, vendedores, ordens, parcelas, agendamentos,
 })
