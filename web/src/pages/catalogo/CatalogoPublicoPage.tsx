@@ -72,7 +72,7 @@ export function CatalogoPublicoPage({ slug, aoVoltar }: { slug: string; aoVoltar
                 <div className="pub-info">
                   <b>{p.descricao}</b>
                   {p.marca && p.marca !== '—' && <span className="fraco">{p.marca}</span>}
-                  <span className="pub-preco">{formatarMoeda(p.preco)}</span>
+                  <span className="pub-preco">{p.preco > 0 ? formatarMoeda(p.preco) : <span style={{ fontSize: 14 }}>Consulte o preço</span>}</span>
                 </div>
                 <Botao variante="primario" disabled={!cat.whatsapp} onClick={() => setEscolhido(p)}>Tenho interesse</Botao>
               </article>
@@ -125,7 +125,7 @@ function ModalInteresse({ slug, cat, produto, aoFechar }: { slug: string; cat: C
         {produto && (
           <div className="linha" style={{ flexWrap: 'nowrap' }}>
             <span className="foto-mini" style={{ width: 64, height: 48 }}>{produto.fotoUrl ? <img src={produto.fotoUrl} alt="" /> : <SemFoto tamanho={40} />}</span>
-            <div><b>{produto.descricao}</b><div className="muted">{formatarMoeda(produto.preco)}</div></div>
+            <div><b>{produto.descricao}</b><div className="muted">{produto.preco > 0 ? formatarMoeda(produto.preco) : "Consulte o preço"}</div></div>
           </div>
         )}
         <p className="muted" style={{ margin: 0 }}>Deixe seu nome e WhatsApp. Em seguida abrimos a conversa com a {cat.loja.nome} com a mensagem pronta.</p>
