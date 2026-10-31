@@ -41,6 +41,8 @@ on conflict (loja_id) do update set
   slug = excluded.slug, ativo = true, whatsapp = excluded.whatsapp,
   titulo = excluded.titulo, apresentacao = excluded.apresentacao, atualizado_em = now();
 
+commit;
+
 -- Conferência: deve mostrar as duas lojas, cada uma com seus usuários e produtos
 select l.nome,
        (select string_agg(p.nome || ' (' || p.papel || ')', ', ') from perfis p where p.loja_id = l.id) as usuarios,
@@ -49,4 +51,3 @@ select l.nome,
        (select slug from catalogos c where c.loja_id = l.id) as catalogo
   from lojas l order by l.criado_em;
 
-commit;
