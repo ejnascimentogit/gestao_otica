@@ -9,11 +9,12 @@ import {
   FORMAS_RECIBO, FORMA_CURTA_RECIBO, calcularParcelas, cnpjValido, cpfValido, formaParcelada, formatarDocumento, mascararDocumento,
   numeroRecibo, soDigitos, somarMeses, validarRecibo, valorPorExtenso, type FormaRecibo,
 } from '../../domain/recibos'
-import { linkWhatsapp } from '../../domain/catalogo'
+import { formatarWhatsapp, linkWhatsapp, normalizarWhatsapp } from '../../domain/catalogo'
 import { totalOs } from '../../domain/totais'
 import {
   assinarReciboNaTela, cancelarRecibo, emitirRecibo, imagemRecibo, linkAssinaturaRecibo, podeGerenciarUsuarios, salvarDadosLoja,
   tentar, useStore, type Recibo,
+  conectarWhatsapp, desconectarWhatsapp, enviarWhatsapp, estadoWhatsapp, qrWhatsapp, type EstadoWhatsapp,
 } from '../../data/store'
 import { comoDataUrl, pdfDeCanvas, qrDoRecibo, reciboCanvas, reciboHtml, urlAssinatura } from '../../lib/reciboDoc'
 import { MODO_DEMO } from '../../lib/supabase'
@@ -33,6 +34,7 @@ export function RecibosPage() {
   const [ver, setVer] = useState<Recibo | null>(null)
   const [assinar, setAssinar] = useState<Recibo | null>(null)
   const [dadosLoja, setDadosLoja] = useState(false)
+  const [whats, setWhats] = useState(false)
 
   if (!recibosDisponivel) {
     return (
@@ -52,6 +54,7 @@ export function RecibosPage() {
     <div>
       <PageHeader titulo="Recibos" sub="Recibos de pagamento com a logo da loja, o valor por extenso, a condição de pagamento e a assinatura. Recibo emitido não muda: se errar, cancele e emita outro."
         acoes={<>
+          {gestor && <Botao onClick={() => setWhats(true)}>WhatsApp da loja</Botao>}
           {gestor && <Botao onClick={() => setDadosLoja(true)}>Dados da loja no recibo</Botao>}
           <Botao variante="primario" disabled={faltaDados} onClick={() => setNovo({})}>{Icone.mais} Novo recibo</Botao>
         </>} />
@@ -107,6 +110,7 @@ export function RecibosPage() {
         aoEditar={() => { setNovo({ substituir: reciboAtual(ver)! }); setVer(null) }} />}
       {assinar && <ModalAssinarRecibo recibo={assinar} aoFechar={() => { const r = reciboAtual(assinar); setAssinar(null); setVer(r) }} />}
       {dadosLoja && <ModalDadosLoja aoFechar={() => setDadosLoja(false)} />}
+      {whats && <ModalWhatsappLoja aoFechar={() => setWhats(false)} />}
     </div>
   )
 }
@@ -268,6 +272,7 @@ function ModalVerRecibo({ recibo: r, aoFechar, aoAssinar, aoEditar }: { recibo: 
   const [html, setHtml] = useState('')
   const [ocupado, setOcupado] = useState('')
   const [aviso, setAviso] = useState('')
+  const [enviarWa, setEnviarWa] = useState(false)
 
   useEffect(() => { montarHtml(r, loja.logoUrl, loja.assinaturaPath).then(setHtml) }, [r, loja.logoUrl, loja.assinaturaPath])
 
@@ -320,7 +325,8 @@ function ModalVerRecibo({ recibo: r, aoFechar, aoAssinar, aoEditar }: { recibo: 
           <Botao pequeno onClick={() => { frame.current?.contentWindow?.focus(); frame.current?.contentWindow?.print() }} disabled={!html}>Imprimir</Botao>
           <Botao pequeno onClick={() => baixar('pdf')} disabled={!html || !!ocupado}>{ocupado === 'pdf' ? 'Gerando…' : 'Baixar PDF'}</Botao>
           <Botao pequeno onClick={() => baixar('png')} disabled={!html || !!ocupado}>{ocupado === 'png' ? 'Gerando…' : 'Baixar imagem'}</Botao>
-          <Botao pequeno className="whats" onClick={compartilhar} disabled={!html || !!ocupado}>Enviar ao cliente</Botao>
+          {emitido && <Botao pequeno className="whats" onClick={() => setEnviarWa(true)} disabled={!html}>Enviar pelo WhatsApp</Botao>}
+          <Botao pequeno onClick={compartilhar} disabled={!html || !!ocupado}>Compartilhar</Botao>
           {emitido && !r.assinadoEm && <>
             <Botao pequeno onClick={aoAssinar}>Assinar na tela</Botao>
             <Botao pequeno onClick={pedirAssinatura} disabled={!!ocupado}>Pedir assinatura por link</Botao>
@@ -330,7 +336,157 @@ function ModalVerRecibo({ recibo: r, aoFechar, aoAssinar, aoEditar }: { recibo: 
         {aviso && <div className="aviso info" style={{ margin: '0 16px 10px' }}><span style={{ flex: 1 }}>{aviso}</span><Botao pequeno variante="fantasma" onClick={() => setAviso('')}>Fechar</Botao></div>}
         <div className="rec-folha">{html ? <iframe ref={frame} title="Recibo" srcDoc={html} /> : <div className="vazio">Montando o recibo…</div>}</div>
       </div>
+      {enviarWa && <ModalEnviarWhatsapp recibo={r} celular={celular} texto={textoRecibo()} gerar={arquivo} nomeArquivo={nomeArquivo}
+        aoFechar={() => setEnviarWa(false)} aoEnviar={m => { setEnviarWa(false); setAviso(m) }} />}
     </div>
+  )
+}
+
+/** Envia o recibo (PDF ou imagem) pelo WhatsApp conectado da loja, sem precisar baixar e anexar */
+function ModalEnviarWhatsapp({ recibo: r, celular, texto: textoInicial, gerar, nomeArquivo, aoFechar, aoEnviar }: {
+  recibo: Recibo; celular: string; texto: string; gerar: (t: 'pdf' | 'png') => Promise<Blob>; nomeArquivo: (ext: string) => string
+  aoFechar: () => void; aoEnviar: (msg: string) => void
+}) {
+  const { papel } = useStore()
+  const [estado, setEstado] = useState<EstadoWhatsapp | null>(null)
+  const [erroEstado, setErroEstado] = useState('')
+  const [numero, setNumero] = useState(celular ? formatarWhatsapp(normalizarWhatsapp(celular) ?? celular) : '')
+  const [texto, setTexto] = useState(textoInicial)
+  const [anexo, setAnexo] = useState<'pdf' | 'png' | 'nada'>('pdf')
+  const [enviando, setEnviando] = useState(false)
+  const [erro, setErro] = useState('')
+  const [conectar, setConectar] = useState(false)
+
+  const carregar = () => estadoWhatsapp().then(setEstado).catch(e => setErroEstado(e instanceof Error ? e.message : String(e)))
+  useEffect(() => { carregar() }, [])
+
+  async function enviar() {
+    setErro('')
+    if (!normalizarWhatsapp(numero)) { setErro('Número com DDD, ex.: (81) 99876-5432.'); return }
+    if (!texto.trim()) { setErro('Escreva a mensagem.'); return }
+    setEnviando(true)
+    try {
+      const arquivo = anexo === 'nada' ? undefined
+        : { nome: nomeArquivo(anexo), tipo: anexo === 'pdf' ? 'application/pdf' : 'image/png', blob: await gerar(anexo) }
+      await enviarWhatsapp({ telefone: numero, nome: r.clienteNome, texto, reciboId: r.id, arquivo })
+      aoEnviar(`Recibo nº ${numeroRecibo(r.numero)} enviado pelo WhatsApp para ${numero}.`)
+    } catch (e) { setErro(e instanceof Error ? e.message : 'Não foi possível enviar.') }
+    setEnviando(false)
+  }
+
+  if (conectar) return <ModalWhatsappLoja aoFechar={() => { setConectar(false); carregar() }} />
+  const conectado = estado?.status === 'conectada'
+  return (
+    <Modal titulo={`Enviar recibo nº ${numeroRecibo(r.numero)} pelo WhatsApp`} aoFechar={aoFechar} rodape={<>
+      <Botao onClick={aoFechar}>Cancelar</Botao>
+      {conectado && <Botao className="whats" disabled={enviando} onClick={enviar}>{enviando ? 'Enviando…' : 'Enviar agora'}</Botao>}
+    </>}>
+      {!estado && !erroEstado && <div className="vazio">Verificando o WhatsApp da loja…</div>}
+      {erroEstado && <div className="aviso alerta">{erroEstado}</div>}
+      {estado && !conectado && (
+        <div style={{ display: 'grid', gap: 10 }}>
+          <div className="aviso alerta">{!estado.configurado ? 'O servidor do WhatsApp ainda não foi configurado.' : 'O WhatsApp da loja não está conectado.'}</div>
+          {estado.configurado && (podeGerenciarUsuarios(papel)
+            ? <Botao variante="primario" onClick={() => setConectar(true)}>Conectar o WhatsApp da loja</Botao>
+            : <p className="muted" style={{ margin: 0 }}>Peça ao administrador ou gerente para conectar o WhatsApp da loja em Recibos → WhatsApp da loja.</p>)}
+          <p className="fraco" style={{ margin: 0 }}>Enquanto isso, use "Compartilhar" no recibo para mandar pelo WhatsApp do celular.</p>
+        </div>
+      )}
+      {estado && conectado && (
+        <div style={{ display: 'grid', gap: 12 }}>
+          <p className="fraco" style={{ margin: 0 }}>Sai do WhatsApp da loja ({formatarWhatsapp(estado.telefone)}) · {estado.enviadasHoje} de {estado.limite} mensagens hoje.</p>
+          <Campo rotulo="WhatsApp do cliente">
+            <Entrada type="tel" inputMode="tel" autoFocus={!numero} placeholder="(81) 99876-5432" value={numero} onChange={e => setNumero(e.target.value)} />
+          </Campo>
+          <Campo rotulo="Mensagem">
+            <textarea className="entrada" rows={4} maxLength={1500} value={texto} onChange={e => setTexto(e.target.value)} />
+          </Campo>
+          <Campo rotulo="Anexo">
+            <Selecao value={anexo} onChange={e => setAnexo(e.target.value as 'pdf' | 'png' | 'nada')}>
+              <option value="pdf">Recibo em PDF</option>
+              <option value="png">Recibo em imagem</option>
+              <option value="nada">Sem anexo (só a mensagem)</option>
+            </Selecao>
+          </Campo>
+          {erro && <p style={{ color: 'var(--erro)', margin: 0 }}>{erro}</p>}
+        </div>
+      )}
+    </Modal>
+  )
+}
+
+/** Conexão do WhatsApp da loja por QR (WuzAPI) */
+function ModalWhatsappLoja({ aoFechar }: { aoFechar: () => void }) {
+  const [estado, setEstado] = useState<EstadoWhatsapp | null>(null)
+  const [erro, setErro] = useState('')
+  const [aceite, setAceite] = useState(false)
+  const [qr, setQr] = useState<string | null>(null)
+  const [aguardando, setAguardando] = useState(false)
+  const [ocupado, setOcupado] = useState(false)
+
+  const carregar = () => estadoWhatsapp().then(e => { setEstado(e); setAguardando(e.status === 'aguardando_qr') }).catch(e => setErro(e instanceof Error ? e.message : String(e)))
+  useEffect(() => { carregar() }, [])
+
+  // enquanto espera a leitura do QR, pergunta a cada 3 s
+  useEffect(() => {
+    if (!aguardando) return
+    let vivo = true
+    const passo = async () => {
+      try {
+        const r = await qrWhatsapp()
+        if (!vivo) return
+        if (r.conectada) { setAguardando(false); setQr(null); carregar(); return }
+        setQr(r.qr)
+      } catch (e) { if (vivo) setErro(e instanceof Error ? e.message : String(e)) }
+    }
+    passo()
+    const id = setInterval(passo, 3000)
+    return () => { vivo = false; clearInterval(id) }
+  }, [aguardando])
+
+  async function conectar() {
+    setErro(''); setOcupado(true)
+    try { await conectarWhatsapp(); setAguardando(true) } catch (e) { setErro(e instanceof Error ? e.message : String(e)) }
+    setOcupado(false)
+  }
+  async function desconectar() {
+    if (!confirm('Desconectar o WhatsApp da loja? Os recibos deixam de sair por ele até conectar de novo.')) return
+    setOcupado(true)
+    try { await desconectarWhatsapp(); await carregar() } catch (e) { setErro(e instanceof Error ? e.message : String(e)) }
+    setOcupado(false)
+  }
+
+  return (
+    <Modal titulo="WhatsApp da loja" aoFechar={aoFechar}>
+      <div style={{ display: 'grid', gap: 12 }}>
+        {!estado && !erro && <div className="vazio">Verificando…</div>}
+        {erro && <div className="aviso alerta">{erro}</div>}
+        {estado && !estado.configurado && <div className="aviso alerta">O servidor do WhatsApp ainda não foi configurado no Supabase (segredos WUZAPI_URL e WUZAPI_ADMIN_TOKEN).</div>}
+        {estado?.status === 'conectada' && (
+          <>
+            <div className="aviso ok"><span style={{ flex: 1 }}>Conectado ao WhatsApp {formatarWhatsapp(estado.telefone)} · {estado.enviadasHoje} de {estado.limite} mensagens hoje.</span></div>
+            <div><Botao disabled={ocupado} onClick={desconectar}>Desconectar</Botao></div>
+          </>
+        )}
+        {estado?.configurado && estado.status !== 'conectada' && !aguardando && (
+          <>
+            <p className="muted" style={{ margin: 0 }}>Conecte o WhatsApp da loja lendo um QR code, como no WhatsApp Web. Depois disso, o recibo sai em PDF direto para o cliente, sem baixar e anexar.</p>
+            <div className="aviso info" style={{ display: 'block' }}>
+              <b>Antes de conectar:</b> esta conexão funciona como o WhatsApp Web, mas não é a API oficial do WhatsApp. Enviar muitas mensagens para quem não tem o número da loja pode levar o WhatsApp a <b>bloquear o número</b>. Por isso há um limite de {estado.limite} mensagens por dia. Use só para clientes que compraram na loja.
+            </div>
+            <label className="chave-linha"><input type="checkbox" checked={aceite} onChange={e => setAceite(e.target.checked)} /> Entendi e quero conectar o WhatsApp da loja</label>
+            <div><Botao variante="primario" disabled={!aceite || ocupado} onClick={conectar}>{ocupado ? 'Conectando…' : 'Conectar'}</Botao></div>
+          </>
+        )}
+        {aguardando && (
+          <div style={{ display: 'grid', gap: 10, justifyItems: 'center', textAlign: 'center' }}>
+            <p className="muted" style={{ margin: 0 }}>No celular da loja, abra o WhatsApp → <b>Aparelhos conectados</b> → <b>Conectar aparelho</b> e aponte para o código.</p>
+            <div className="wa-qr">{qr ? <img src={qr} alt="QR code para conectar o WhatsApp" /> : <span className="fraco">Gerando o código…</span>}</div>
+            <span className="fraco">O código muda sozinho a cada poucos segundos.</span>
+          </div>
+        )}
+      </div>
+    </Modal>
   )
 }
 

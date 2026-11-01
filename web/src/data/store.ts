@@ -432,3 +432,39 @@ export async function salvarDadosLoja(d: { cnpj: string; telefone: string; email
   if (!MODO_DEMO) await repo.salvarDadosLoja(estado.loja.id, { ...d, assinaturaPath: assinaturaPath ?? '' })
   atualizar(e => ({ loja: { ...e.loja, cnpj: d.cnpj, telefone: d.telefone, email: d.email, endereco: d.endereco, redesSociais: d.redesSociais, corRecibo: d.corRecibo, assinaturaPath } }))
 }
+
+// ---- WhatsApp da loja (WuzAPI) ----
+export interface EstadoWhatsapp { configurado: boolean; status: 'desconectada' | 'aguardando_qr' | 'conectada' | 'erro'; telefone: string | null; enviadasHoje: number; limite: number; erro: string | null }
+let demoWhats: EstadoWhatsapp = { configurado: true, status: 'desconectada', telefone: null, enviadasHoje: 0, limite: 50, erro: null }
+
+export async function estadoWhatsapp(): Promise<EstadoWhatsapp> {
+  if (MODO_DEMO) return demoWhats
+  const r = await repo.chamarWhatsapp({ acao: 'estado' })
+  const c = r.conta
+  return { configurado: !!r.configurado, status: c?.status ?? 'desconectada', telefone: c?.telefone ?? null, enviadasHoje: r.enviadas_hoje ?? 0, limite: c?.limite_diario ?? 50, erro: c?.ultimo_erro ?? null }
+}
+export async function conectarWhatsapp() {
+  if (MODO_DEMO) { demoWhats = { ...demoWhats, status: 'aguardando_qr' }; return }
+  await repo.chamarWhatsapp({ acao: 'conectar', consentimento: true })
+}
+/** Pergunta o QR (ou se já conectou) */
+export async function qrWhatsapp(): Promise<{ conectada: boolean; qr: string | null; telefone?: string }> {
+  if (MODO_DEMO) { demoWhats = { ...demoWhats, status: 'conectada', telefone: '5581999990000' }; return { conectada: true, qr: null, telefone: '5581999990000' } }
+  const r = await repo.chamarWhatsapp({ acao: 'qr' })
+  return { conectada: !!r.conectada, qr: r.qr ?? null, telefone: r.telefone ?? undefined }
+}
+export async function desconectarWhatsapp() {
+  if (MODO_DEMO) { demoWhats = { ...demoWhats, status: 'desconectada', telefone: null }; return }
+  await repo.chamarWhatsapp({ acao: 'desconectar' })
+}
+export async function enviarWhatsapp(m: { telefone: string; nome?: string; texto: string; reciboId?: string; arquivo?: { nome: string; tipo: string; blob: Blob } }) {
+  let arquivo: { nome: string; tipo: string; base64: string } | undefined
+  if (m.arquivo) {
+    const buf = new Uint8Array(await m.arquivo.blob.arrayBuffer())
+    let bin = ''
+    for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000))
+    arquivo = { nome: m.arquivo.nome, tipo: m.arquivo.tipo, base64: btoa(bin) }
+  }
+  if (MODO_DEMO) { demoWhats = { ...demoWhats, enviadasHoje: demoWhats.enviadasHoje + 1 }; return }
+  await repo.chamarWhatsapp({ acao: 'enviar', telefone: m.telefone, nome: m.nome, texto: m.texto, recibo_id: m.reciboId, arquivo })
+}

@@ -476,3 +476,18 @@ export async function assinarReciboPeloLink(token: string, img: string): Promise
   falhou(error, 'Assinar recibo')
   return data as Linha
 }
+
+// ---------- WhatsApp da loja (Edge Function whatsapp-loja) ----------
+export async function chamarWhatsapp(corpo: Record<string, unknown>): Promise<Linha> {
+  const { data, error } = await sb.functions.invoke('whatsapp-loja', { body: corpo })
+  if (error) {
+    let msg = error.message
+    const ctx = (error as { context?: Response }).context
+    if (ctx && typeof ctx.json === 'function') { try { const j = await ctx.json(); if (j?.erro) msg = j.erro } catch { /* mantém */ } }
+    if (/Failed to send a request|FunctionsFetchError|not found/i.test(msg)) msg = 'A função do WhatsApp ainda não está publicada no Supabase (whatsapp-loja).'
+    throw new Error(msg)
+  }
+  const r = data as Linha
+  if (r && r.ok === false) throw new Error(r.erro || 'Não foi possível concluir.')
+  return r
+}

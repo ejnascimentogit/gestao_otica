@@ -357,3 +357,5 @@ a.botao.desligado { opacity: .5; pointer-events: none; }
 .rec-pub-linha { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 1px solid var(--borda); font-size: 14px; }
 .rec-pub-linha span { color: var(--tinta-2); }
 .rec-pub-linha b { text-align: right; }
+.wa-qr { width: 260px; height: 260px; border-radius: 12px; background: #fff; border: 1px solid var(--borda); display: grid; place-items: center; padding: 10px; }
+.wa-qr img { width: 100%; height: 100%; image-rendering: pixelated; }
