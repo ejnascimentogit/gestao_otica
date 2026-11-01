@@ -58,7 +58,7 @@ const wz = {
   checar: (c: Cfg, t: string, fone: string) => chamar(c, '/user/check', { token: t, corpo: { Phone: [fone] } }),
   texto: (c: Cfg, t: string, fone: string, corpo: string) => chamar(c, '/chat/send/text', { token: t, corpo: { Phone: fone, Body: corpo } }),
   imagem: (c: Cfg, t: string, fone: string, dataUrl: string, legenda: string) => chamar(c, '/chat/send/image', { token: t, corpo: { Phone: fone, Image: dataUrl, Caption: legenda } }),
-  documento: (c: Cfg, t: string, fone: string, dataUrl: string, nome: string) => chamar(c, '/chat/send/document', { token: t, corpo: { Phone: fone, Document: dataUrl, FileName: nome } }),
+  documento: (c: Cfg, t: string, fone: string, dataUrl: string, nome: string, legenda: string) => chamar(c, '/chat/send/document', { token: t, corpo: { Phone: fone, Document: dataUrl, FileName: nome, MimeType: 'application/pdf', Caption: legenda } }),
 }
 const logado = (st: Resp) => (st.json?.data?.loggedIn ?? st.json?.data?.LoggedIn) === true
 const jidDe = (st: Resp) => st.json?.data?.jid ?? st.json?.data?.Jid ?? st.json?.data?.JID ?? null
@@ -200,7 +200,7 @@ Deno.serve(async (req: Request) => {
           const dataUrl = `data:${arq.tipo};base64,${arq.base64}`
           const nome = String(arq.nome || 'recibo.pdf').replace(/[^\w.\- ]+/g, '_').slice(0, 80)
           if (arq.tipo.startsWith('image/')) r = await wz.imagem(cfg, t, destino, dataUrl, texto)
-          else { r = await wz.documento(cfg, t, destino, dataUrl, nome); if (r.ok) await wz.texto(cfg, t, destino, texto) }
+          else r = await wz.documento(cfg, t, destino, dataUrl, nome, texto)   // a mensagem vai como legenda do PDF
         } else r = await wz.texto(cfg, t, destino, texto)
 
         if (r.ok) { await registrar('enviada'); return resp({ ok: true }) }
