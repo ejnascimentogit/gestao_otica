@@ -6,6 +6,7 @@ import type { Receita } from '../domain/receita'
 import type { ItemOs, TipoProduto, UnidadeVenda } from '../domain/totais'
 import type { MetodoJuros, ParcelaSimulada } from '../domain/crediario'
 import type { StatusInteressado } from '../domain/catalogo'
+import type { FormaRecibo } from '../domain/recibos'
 import { formatarWhatsapp } from '../domain/catalogo'
 import { MODO_DEMO } from '../lib/supabase'
 import * as repo from './repo'
@@ -30,7 +31,25 @@ export const FORMAS: Record<FormaPagamento, string> = {
   crediario_loja: 'Crediário da loja',
 }
 
-export interface Loja { id: string; nome: string; cnpj: string; telefone: string; endereco: string; logoUrl?: string; logoIconeUrl?: string; codigo?: number }
+export interface Loja {
+  id: string; nome: string; cnpj: string; telefone: string; endereco: string; logoUrl?: string; logoIconeUrl?: string; codigo?: number
+  /** dados usados no recibo */
+  email?: string; redesSociais?: string; corRecibo?: string; assinaturaPath?: string
+}
+/** Retrato da loja gravado em cada recibo (não muda depois de emitido) */
+export interface EmissorRecibo { nome: string; documento: string; telefone: string; email: string; endereco: string; redes_sociais: string; cor: string }
+export interface Recibo {
+  id: string; numero: number; codigo: string; dataEmissao: string
+  clienteId: string | null; clienteNome: string; clienteDocumento: string; osId: string | null
+  descricao: string; valor: Centavos; forma: FormaRecibo; parcelas: number; primeiraParcela: string | null
+  emissor: EmissorRecibo; hash: string; status: 'emitido' | 'cancelado'; canceladoEm: string | null
+  assinaturaClientePath: string | null; assinadoEm: string | null; assinadoIp: string | null; assinadoVia: string | null
+  criadoEm: string
+}
+export interface NovoRecibo {
+  dataEmissao: string; clienteId: string | null; clienteNome: string; clienteDocumento: string; osId: string | null
+  descricao: string; valor: Centavos; forma: FormaRecibo; parcelas: number; primeiraParcela: string | null
+}
 export interface Cliente { id: string; nome: string; cpf: string; celular: string; nascimento?: string; endereco?: string }
 export interface Produto {
   id: string; tipo: TipoProduto; descricao: string; marca: string; unidade: UnidadeVenda
@@ -105,12 +124,16 @@ interface Estado {
   provadorDisponivel: boolean
   catalogo: Catalogo | null
   interessados: Interessado[]
+  /** false enquanto a migração 8 (recibos) não foi aplicada */
+  recibosDisponivel: boolean
+  recibos: Recibo[]
 }
 
 const vazio: Estado = {
   loja: { id: '', nome: '', cnpj: '', telefone: '', endereco: '' }, usuario: '', perfilId: '', papel: 'vendedor', trocarSenha: false, usuarios: [], carregando: false, erro: '',
   clientes: [], produtos: [], laboratorios: [], vendedores: [], ordens: [], parcelas: [], agendamentos: [],
   catalogoDisponivel: false, provadorDisponivel: false, catalogo: null, interessados: [],
+  recibosDisponivel: false, recibos: [],
 }
 
 let estado: Estado = vazio
@@ -156,9 +179,9 @@ export async function iniciar(): Promise<ResultadoInicio> {
   try {
     const perfil = await repo.carregarPerfil()
     if (!perfil) { atualizar(() => ({ carregando: false })); return 'sem_loja' }
-    const [dados, cat] = await Promise.all([repo.carregarTudo(perfil.loja.id), repo.carregarCatalogo(perfil.loja.id)])
+    const [dados, cat, rec] = await Promise.all([repo.carregarTudo(perfil.loja.id), repo.carregarCatalogo(perfil.loja.id), repo.carregarRecibos(perfil.loja.id)])
     estado = {
-      ...vazio, ...dados, catalogoDisponivel: cat.disponivel, provadorDisponivel: cat.provador, catalogo: cat.catalogo, interessados: cat.interessados, loja: perfil.loja, usuario: perfil.nomeUsuario, perfilId: perfil.perfilId, papel: perfil.papel, trocarSenha: perfil.trocarSenha,
+      ...vazio, ...dados, catalogoDisponivel: cat.disponivel, provadorDisponivel: cat.provador, recibosDisponivel: rec.disponivel, recibos: rec.recibos, catalogo: cat.catalogo, interessados: cat.interessados, loja: perfil.loja, usuario: perfil.nomeUsuario, perfilId: perfil.perfilId, papel: perfil.papel, trocarSenha: perfil.trocarSenha,
     }
     emitir()
     return 'ok'
@@ -335,4 +358,77 @@ export async function registrarInteressePublico(slug: string, produto: ProdutoPu
     whatsapp, status: 'novo', clienteId: null, criadoEm: new Date().toISOString(),
   }
   atualizar(e => ({ interessados: [novo, ...e.interessados] }))
+}
+
+// ---- recibos ----
+export function emissorDaLoja(l: Loja): EmissorRecibo {
+  return {
+    nome: l.nome, documento: (l.cnpj || '').replace(/\D/g, ''), telefone: l.telefone || '', email: l.email || '',
+    endereco: l.endereco || '', redes_sociais: l.redesSociais || '', cor: l.corRecibo || '#7a2e4d',
+  }
+}
+
+async function sha256(texto: string): Promise<string> {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(texto))
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('')
+}
+
+/** Emite o recibo (e cancela o antigo, quando é uma edição). Devolve o recibo com o código de autenticidade. */
+export async function emitirRecibo(dados: NovoRecibo, substituirId?: string): Promise<Recibo> {
+  const emissor = emissorDaLoja(estado.loja)
+  let r: Recibo
+  if (MODO_DEMO) {
+    const numero = Math.max(0, ...estado.recibos.map(x => x.numero)) + 1
+    r = { ...dados, id: novoId(), numero, codigo: novoId().replace(/-/g, '').slice(0, 8).toUpperCase(), emissor, hash: '', status: 'emitido',
+      canceladoEm: null, assinaturaClientePath: null, assinadoEm: null, assinadoIp: null, assinadoVia: null, criadoEm: new Date().toISOString() }
+    r.hash = await sha256([r.id, r.numero, r.codigo, r.dataEmissao, r.clienteNome, r.clienteDocumento, String(r.valor / 100), r.forma, r.parcelas, r.primeiraParcela || '', emissor.documento, r.criadoEm].join('|'))
+  } else {
+    r = await repo.inserirRecibo(estado.loja.id, dados, emissor)
+    r.hash = await sha256(repo.textoHashRecibo(r))
+    await repo.gravarHashRecibo(r.id, r.hash)
+  }
+  if (substituirId) await cancelarRecibo(substituirId)
+  atualizar(e => ({ recibos: [r, ...e.recibos] }))
+  return r
+}
+
+export async function cancelarRecibo(id: string) {
+  const quando = new Date().toISOString()
+  if (!MODO_DEMO) await repo.cancelarRecibo(id, quando)
+  atualizar(e => ({ recibos: e.recibos.map(r => (r.id === id ? { ...r, status: 'cancelado', canceladoEm: quando } : r)) }))
+}
+
+/** Assinatura do cliente desenhada na tela da loja */
+export async function assinarReciboNaTela(id: string, imagem: Blob) {
+  const quando = new Date().toISOString()
+  const path = MODO_DEMO ? 'demo:' + URL.createObjectURL(imagem) : await repo.assinarReciboNaTela(estado.loja.id, id, imagem, quando)
+  atualizar(e => ({ recibos: e.recibos.map(r => (r.id === id ? { ...r, assinaturaClientePath: path, assinadoEm: quando, assinadoVia: 'tela' } : r)) }))
+}
+
+/** Endereço (temporário) de uma imagem guardada: assinatura da loja ou do cliente */
+export async function imagemRecibo(path: string | null | undefined): Promise<string | null> {
+  if (!path) return null
+  if (path.startsWith('demo:')) return path.slice(5)
+  if (MODO_DEMO) return null
+  return repo.imagemPrivada(path)
+}
+
+export async function linkAssinaturaRecibo(id: string): Promise<string> {
+  if (MODO_DEMO) return 'demo-' + id
+  return repo.gerarLinkAssinatura(id)
+}
+
+export async function recarregarRecibos() {
+  if (MODO_DEMO) return
+  const r = await repo.carregarRecibos(estado.loja.id)
+  atualizar(() => ({ recibos: r.recibos, recibosDisponivel: r.disponivel }))
+}
+
+/** Dados da loja que aparecem no recibo (só admin/gerente) */
+export async function salvarDadosLoja(d: { cnpj: string; telefone: string; email: string; endereco: string; redesSociais: string; corRecibo: string }, assinatura?: Blob | null) {
+  let assinaturaPath = estado.loja.assinaturaPath
+  if (assinatura === null) assinaturaPath = undefined
+  if (assinatura) assinaturaPath = MODO_DEMO ? 'demo:' + URL.createObjectURL(assinatura) : await repo.enviarAssinaturaLoja(estado.loja.id, assinatura)
+  if (!MODO_DEMO) await repo.salvarDadosLoja(estado.loja.id, { ...d, assinaturaPath: assinaturaPath ?? '' })
+  atualizar(e => ({ loja: { ...e.loja, cnpj: d.cnpj, telefone: d.telefone, email: d.email, endereco: d.endereco, redesSociais: d.redesSociais, corRecibo: d.corRecibo, assinaturaPath } }))
 }

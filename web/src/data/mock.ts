@@ -2,7 +2,7 @@
 import { hojeISO, somarDias } from '../domain/formatos'
 import { receitaVazia } from '../domain/receita'
 import type { ItemOs } from '../domain/totais'
-import type { Agendamento, Catalogo, Interessado, Cliente, Laboratorio, OrdemServico, Parcela, Produto, StatusOs, Vendedor } from './store'
+import type { Recibo, Agendamento, Catalogo, Interessado, Cliente, Laboratorio, OrdemServico, Parcela, Produto, StatusOs, Vendedor } from './store'
 
 const uid = () => Math.random().toString(36).slice(2, 10)
 const hoje = hojeISO()
@@ -107,8 +107,21 @@ const interessados: Interessado[] = [
   { id: 'i2', produtoId: 'p10', produtoDescricao: 'Armação retangular preta fosca', nome: 'Marcos Vinícius', whatsapp: '5581977776666', status: 'em_contato', clienteId: null, criadoEm: new Date(Date.now() - 26 * 3600000).toISOString() },
 ]
 
+const emissorDemo = { nome: 'Ótica Exemplo', documento: '29488278000131', telefone: '(81) 3333-0000', email: 'contato@exemplo.com', endereco: 'Rua Exemplo, 100 — Recife/PE', redes_sociais: '@oticaexemplo', cor: '#7a2e4d' }
+const recibos: Recibo[] = [
+  { id: 'r2', numero: 2, codigo: 'B7C1D2E3', dataEmissao: hoje, clienteId: 'c2', clienteNome: 'José Carlos Albuquerque', clienteDocumento: '', osId: null,
+    descricao: 'Óculos de grau, OS nº 2', valor: 109000, forma: 'crediario_loja', parcelas: 3, primeiraParcela: somarDias(hoje, 30), emissor: emissorDemo,
+    hash: 'f3a1c9d0e8b7a6c5d4e3f2a1b0c9d8e7f6a5b4c3d2e1f0a9b8c7d6e5f4a3b2c1', status: 'emitido', canceladoEm: null, assinaturaClientePath: null,
+    assinadoEm: null, assinadoIp: null, assinadoVia: null, criadoEm: new Date().toISOString() },
+  { id: 'r1', numero: 1, codigo: 'A1B2C3D4', dataEmissao: somarDias(hoje, -2), clienteId: 'c1', clienteNome: 'Maria das Graças Lima', clienteDocumento: '52998224725', osId: null,
+    descricao: 'Óculos de grau, OS nº 1', valor: 68000, forma: 'pix', parcelas: 1, primeiraParcela: null, emissor: emissorDemo,
+    hash: '0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c', status: 'emitido', canceladoEm: null, assinaturaClientePath: null,
+    assinadoEm: null, assinadoIp: null, assinadoVia: null, criadoEm: new Date(Date.now() - 2 * 86400000).toISOString() },
+]
+
 export const dadosDemo = () => ({
+  recibosDisponivel: true, recibos,
   catalogoDisponivel: true, provadorDisponivel: true, catalogo, interessados,
-  loja: { id: 'demo', codigo: 1, nome: 'Ótica Exemplo', cnpj: '00.000.000/0001-00', telefone: '(81) 3333-0000', endereco: 'Rua Exemplo, 100 — Recife/PE' },
+  loja: { id: 'demo', codigo: 1, nome: 'Ótica Exemplo', cnpj: '29.488.278/0001-31', email: 'contato@exemplo.com', redesSociais: '@oticaexemplo', corRecibo: '#7a2e4d', telefone: '(81) 3333-0000', endereco: 'Rua Exemplo, 100 — Recife/PE' },
   clientes, produtos, laboratorios, vendedores, ordens, parcelas, agendamentos,
 })

@@ -21,7 +21,11 @@ export function formatarData(iso: string | null | undefined): string {
   return `${d}/${m}/${a}`
 }
 
-export const hojeISO = () => new Date().toISOString().slice(0, 10)
+/** Data de hoje no fuso do aparelho (toISOString daria o dia seguinte depois das 21h no Brasil) */
+export const hojeISO = () => {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
 
 export function somarDias(iso: string, dias: number): string {
   const d = new Date(iso + 'T12:00:00')

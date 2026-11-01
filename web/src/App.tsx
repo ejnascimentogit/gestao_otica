@@ -12,6 +12,8 @@ import { LaboratoriosPage } from './pages/LaboratoriosPage'
 import { UsuariosPage } from './pages/UsuariosPage'
 import { CatalogoPage } from './pages/catalogo/CatalogoPage'
 import { CatalogoPublicoPage } from './pages/catalogo/CatalogoPublicoPage'
+import { RecibosPage } from './pages/recibos/RecibosPage'
+import { ReciboPublicoPage } from './pages/recibos/ReciboPublicoPage'
 import { slugDoCaminho } from './domain/catalogo'
 import { TrocarSenha } from './components/TrocarSenha'
 import { Aparencia } from './components/Aparencia'
@@ -29,6 +31,7 @@ const MODULOS: Array<{ rota: string; rotulo: string; icone: ReactNode; grupo?: s
   { rota: 'produtos', rotulo: 'Produtos e serviços', icone: Icone.produtos },
   { rota: 'laboratorios', rotulo: 'Laboratórios', icone: Icone.laboratorio },
   { rota: 'financeiro', rotulo: 'Financeiro', icone: Icone.financeiro, grupo: 'Gestão' },
+  { rota: 'recibos', rotulo: 'Recibos', icone: Icone.recibo },
   { rota: 'usuarios', rotulo: 'Usuários', icone: Icone.chave, soGestor: true },
 ]
 
@@ -40,6 +43,8 @@ export default function App() {
   // Link público do catálogo (/catalogo/<endereço>): abre sem login
   const slugPublico = MODO_DEMO ? null : slugDoCaminho(window.location.pathname)
   if (slugPublico) return <CatalogoPublicoPage slug={slugPublico} />
+  // Recibo público (/recibo?t= assinar, /recibo?c= conferir): também sem login
+  if (!MODO_DEMO && /^\/recibo\/?$/.test(window.location.pathname)) return <ReciboPublicoPage />
   return <AppInterno />
 }
 
@@ -137,6 +142,7 @@ function Sistema({ aoSair }: { aoSair?: () => void }) {
     financeiro: <FinanceiroPage />,
     usuarios: <UsuariosPage />,
     catalogo: <CatalogoPage />,
+    recibos: <RecibosPage />,
   }[rota] ?? <DashboardPage irPara={irPara} />
 
   return (

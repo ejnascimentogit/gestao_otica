@@ -6,8 +6,9 @@ import { receitaVazia, type Receita } from '../domain/receita'
 import { subtotal, totalOs, type ItemOs } from '../domain/totais'
 import type { ParcelaSimulada, MetodoJuros } from '../domain/crediario'
 import type { StatusInteressado } from '../domain/catalogo'
+import { textoAutenticidade, type FormaRecibo } from '../domain/recibos'
 import type {
-  Agendamento, Catalogo, CatalogoPublico, Interessado, Cliente, FormaPagamento, Laboratorio, Loja, OrdemServico, Papel, Parcela, Produto, Usuario, Vendedor,
+  Agendamento, Catalogo, CatalogoPublico, Interessado, Cliente, EmissorRecibo, NovoRecibo, Recibo, FormaPagamento, Laboratorio, Loja, OrdemServico, Papel, Parcela, Produto, Usuario, Vendedor,
 } from './store'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -45,6 +46,7 @@ export async function carregarPerfil(): Promise<{ loja: Loja; nomeUsuario: strin
       id: l.id, nome: l.nome, cnpj: l.cnpj ?? '', telefone: l.telefone ?? '', endereco: l.endereco?.texto ?? '',
       logoUrl: l.logo_url ?? undefined, logoIconeUrl: l.logo_icone_url ?? undefined,
       codigo: typeof l.codigo === 'number' ? l.codigo : undefined,
+      email: l.email ?? undefined, redesSociais: l.redes_sociais ?? undefined, corRecibo: l.cor_recibo ?? undefined, assinaturaPath: l.assinatura_path ?? undefined,
     },
   }
 }
@@ -365,4 +367,112 @@ export async function registrarInteresse(slug: string, produtoId: string | null,
   falhou(error, 'Registrar interesse')
   const r = data as Linha
   if (r && r.ok === false) throw new Error(r.erro || 'Não foi possível registrar.')
+}
+
+// ---------- recibos ----------
+const COLS_RECIBO = 'id,numero,codigo,data_emissao,cliente_id,cliente_nome,cliente_documento,os_id,descricao,valor,forma_pagamento,parcelas,primeira_parcela,emissor,hash,status,cancelado_em,assinatura_cliente_path,assinado_em,assinado_ip,assinado_via,created_at'
+/** guarda o valor e a data como vieram do banco: o código de autenticidade usa exatamente esse texto */
+const brutoRecibo = new Map<string, { valor: number; created_at: string }>()
+
+function reciboDeDb(r: Linha): Recibo {
+  brutoRecibo.set(r.id, { valor: Number(r.valor), created_at: r.created_at })
+  return {
+    id: r.id, numero: r.numero, codigo: r.codigo, dataEmissao: r.data_emissao, clienteId: r.cliente_id ?? null, clienteNome: r.cliente_nome,
+    clienteDocumento: r.cliente_documento ?? '', osId: r.os_id ?? null, descricao: r.descricao ?? '', valor: cent(r.valor),
+    forma: r.forma_pagamento as FormaRecibo, parcelas: r.parcelas ?? 1, primeiraParcela: r.primeira_parcela ?? null,
+    emissor: (r.emissor ?? {}) as EmissorRecibo, hash: r.hash ?? '', status: r.status, canceladoEm: r.cancelado_em ?? null,
+    assinaturaClientePath: r.assinatura_cliente_path ?? null, assinadoEm: r.assinado_em ?? null, assinadoIp: r.assinado_ip ?? null,
+    assinadoVia: r.assinado_via ?? null, criadoEm: r.created_at,
+  }
+}
+
+export function textoHashRecibo(r: Recibo): string {
+  const b = brutoRecibo.get(r.id)
+  return textoAutenticidade({
+    id: r.id, numero: r.numero, codigo: r.codigo, data_emissao: r.dataEmissao, cliente_nome: r.clienteNome, cliente_documento: r.clienteDocumento,
+    valor: b?.valor ?? reais(r.valor), forma_pagamento: r.forma, parcelas: r.parcelas, primeira_parcela: r.primeiraParcela,
+    emissor_documento: r.emissor.documento || '', created_at: b?.created_at ?? r.criadoEm,
+  })
+}
+
+export async function carregarRecibos(lojaId: string): Promise<{ disponivel: boolean; recibos: Recibo[] }> {
+  const { data, error } = await sb.from('recibos').select(COLS_RECIBO).eq('loja_id', lojaId).order('numero', { ascending: false }).limit(1000)
+  if (error) return { disponivel: false, recibos: [] }
+  return { disponivel: true, recibos: (data as Linha[]).map(reciboDeDb) }
+}
+
+export async function inserirRecibo(lojaId: string, d: NovoRecibo, emissor: EmissorRecibo): Promise<Recibo> {
+  const { data, error } = await sb.from('recibos').insert({
+    loja_id: lojaId, data_emissao: d.dataEmissao, cliente_id: d.clienteId, cliente_nome: d.clienteNome.trim(),
+    cliente_documento: d.clienteDocumento, os_id: d.osId, descricao: d.descricao.trim(), valor: reais(d.valor),
+    forma_pagamento: d.forma, parcelas: d.parcelas, primeira_parcela: d.primeiraParcela, emissor,
+  }).select(COLS_RECIBO).single()
+  falhou(error, 'Emitir recibo')
+  return reciboDeDb(data as Linha)
+}
+
+export async function gravarHashRecibo(id: string, hash: string) {
+  const { error } = await sb.from('recibos').update({ hash }).eq('id', id)
+  falhou(error, 'Gravar o código de autenticidade')
+}
+
+export async function cancelarRecibo(id: string, quando: string) {
+  const { error } = await sb.from('recibos').update({ status: 'cancelado', cancelado_em: quando }).eq('id', id)
+  falhou(error, 'Cancelar recibo')
+}
+
+export async function assinarReciboNaTela(lojaId: string, id: string, imagem: Blob, quando: string): Promise<string> {
+  const path = `${lojaId}/recibo-${id}.png`
+  const up = await sb.storage.from('recibos').upload(path, imagem, { contentType: 'image/png', upsert: true })
+  falhou(up.error, 'Enviar assinatura')
+  const { error } = await sb.from('recibos').update({ assinatura_cliente_path: path, assinado_em: quando, assinado_via: 'tela' }).eq('id', id)
+  falhou(error, 'Salvar assinatura')
+  return path
+}
+
+/** Imagem guardada: assinatura feita pelo link fica no próprio recibo; as outras no bucket privado */
+export async function imagemPrivada(path: string): Promise<string | null> {
+  if (path.startsWith('inline:')) {
+    const { data } = await sb.from('recibos').select('assinatura_cliente_img').eq('id', path.slice(7)).maybeSingle()
+    return (data as Linha | null)?.assinatura_cliente_img ?? null
+  }
+  const { data } = await sb.storage.from('recibos').createSignedUrl(path, 3600)
+  return data?.signedUrl ?? null
+}
+
+export async function gerarLinkAssinatura(id: string): Promise<string> {
+  const { data, error } = await sb.rpc('recibo_gerar_link', { p_recibo: id })
+  falhou(error, 'Gerar link de assinatura')
+  return data as string
+}
+
+export async function enviarAssinaturaLoja(lojaId: string, imagem: Blob): Promise<string> {
+  const path = `${lojaId}/assinatura-loja-${Date.now()}.png`
+  const { error } = await sb.storage.from('recibos').upload(path, imagem, { contentType: 'image/png' })
+  falhou(error, 'Enviar assinatura da loja')
+  return path
+}
+
+export async function salvarDadosLoja(lojaId: string, d: { cnpj: string; telefone: string; email: string; endereco: string; redesSociais: string; corRecibo: string; assinaturaPath: string }) {
+  const { error } = await sb.rpc('loja_salvar_dados', { p_loja: lojaId, p_dados: {
+    cnpj: d.cnpj, telefone: d.telefone, email: d.email, endereco: d.endereco, redes_sociais: d.redesSociais, cor_recibo: d.corRecibo, assinatura_path: d.assinaturaPath,
+  } })
+  falhou(error, 'Salvar dados da loja')
+}
+
+// ---------- recibo público (cliente sem login) ----------
+export async function verificarRecibo(codigo: string): Promise<Linha> {
+  const { data, error } = await sb.rpc('recibo_verificar', { p_codigo: codigo })
+  falhou(error, 'Conferir recibo')
+  return data as Linha
+}
+export async function dadosLinkRecibo(token: string): Promise<Linha> {
+  const { data, error } = await sb.rpc('recibo_link_dados', { p_token: token })
+  falhou(error, 'Abrir recibo')
+  return data as Linha
+}
+export async function assinarReciboPeloLink(token: string, img: string): Promise<Linha> {
+  const { data, error } = await sb.rpc('recibo_link_assinar', { p_token: token, p_img: img })
+  falhou(error, 'Assinar recibo')
+  return data as Linha
 }
