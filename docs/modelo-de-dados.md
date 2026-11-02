@@ -11,7 +11,7 @@ Projeto Supabase `gestao-otica` (ref `mhouxtzeomirluezzaql`, São Paulo).
 | `20261031000005_catalogo_e_interessados.sql` | Foto e "no catálogo" em `produtos`; `catalogos`; `interessados_catalogo`; funções públicas `catalogo_publico` e `catalogo_registrar_interesse`; bucket público `catalogo` | Aplicada em 31/10/2026 (em 4 partes) |
 | `20261031000006_provador.sql` | `produtos.provador_url`; `catalogo_publico` devolve código e imagem do provador | Aplicada em 31/10/2026 |
 | `20261031000007_codigo_loja.sql` | `lojas.codigo` (1 = Ótica Nascimento, 2 = Studio Óptico Eucênia; próximas automáticas) | Aplicada em 31/10/2026 |
-| `20261101000008_recibos.sql` | Recibos (`recibos`, `recibo_links`), dados da loja no recibo e `loja_salvar_dados`, funções públicas de assinatura e conferência, bucket privado `recibos` | A aplicar |
+| `20261101000008_recibos.sql` | Recibos (`recibos`, `recibo_links`), dados da loja no recibo e `loja_salvar_dados`, funções públicas de assinatura e conferência, bucket privado `recibos` | Aplicada em 02/11/2026 (em partes) |
 | `20261101000009_whatsapp_loja.sql` | WhatsApp da loja (WuzAPI): `whatsapp_contas`, `whatsapp_envios`, token no Vault | A aplicar |
 
 Edge Function `whatsapp-loja` (`supabase/functions/whatsapp-loja/index.ts`): conecta o WhatsApp da loja por QR no WuzAPI e envia o recibo em PDF. Verify JWT desligado; segredos `WUZAPI_URL` e `WUZAPI_ADMIN_TOKEN`.
