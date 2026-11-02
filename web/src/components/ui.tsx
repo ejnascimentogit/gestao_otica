@@ -83,3 +83,72 @@ export const Icone = {
   recibo: <svg viewBox="0 0 24 24" {...p}><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z" /><path d="M9 8h6M9 12h6M9 16h3" /></svg>,
   lixo: <svg viewBox="0 0 24 24" {...p}><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" /></svg>,
 }
+
+/* ---- Layout da família Full (faixa de resumo, linha com faixa lateral, cartão de grupo) ---- */
+
+export interface NumeroFaixa { valor: ReactNode; rotulo: string; detalhe?: ReactNode; tom?: 'dest' | 'alerta' }
+export interface SegmentoFaixa { rotulo: string; n: number; cor: string }
+
+/** Barra escura do topo: 2 a 4 números de ação e, opcional, a distribuição com legenda. */
+export function FaixaResumo({ numeros, titulo, segmentos }: { numeros: NumeroFaixa[]; titulo?: string; segmentos?: SegmentoFaixa[] }) {
+  const total = segmentos?.reduce((s, x) => s + x.n, 0) ?? 0
+  return (
+    <div className={`ff-faixa ${segmentos ? '' : 'sem-dist'}`} style={{ ['--ff-n' as string]: numeros.length }}>
+      {numeros.map(n => (
+        <div key={n.rotulo} className={`ff-k ${n.tom ?? ''}`}><b>{n.valor}</b><span>{n.rotulo}</span>{n.detalhe && <small>{n.detalhe}</small>}</div>
+      ))}
+      {segmentos && (
+        <div className="ff-dist">
+          {titulo && <div className="ff-tit">{titulo}</div>}
+          <div className="ff-bar">{total === 0 ? <i style={{ flex: 1, opacity: .25, background: '#fff' }} /> :
+            segmentos.filter(s => s.n > 0).map(s => <i key={s.rotulo} style={{ flex: s.n, background: s.cor }} title={`${s.rotulo}: ${s.n}`} />)}</div>
+          <div className="ff-leg">{segmentos.map(s => <span key={s.rotulo}><i style={{ background: s.cor }} />{s.rotulo} <b>{s.n}</b></span>)}</div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** Linha de lista com faixa lateral na cor `cor` (variável CSS ou cor de dado). */
+export function LinhaFaixa({ cor, inicio, titulo, sub, fim, aoClicar }: { cor: string; inicio?: ReactNode; titulo: ReactNode; sub?: ReactNode; fim?: ReactNode; aoClicar?: () => void }) {
+  return (
+    <div className={`ff-lin ${aoClicar ? 'clicavel' : ''}`} style={{ ['--e' as string]: cor }} onClick={aoClicar}
+      role={aoClicar ? 'button' : undefined} tabIndex={aoClicar ? 0 : undefined}
+      onKeyDown={aoClicar ? ev => { if (ev.key === 'Enter') aoClicar() } : undefined}>
+      {inicio}
+      <div className="ff-t"><b>{titulo}</b>{sub && <span>{sub}</span>}</div>
+      {fim}
+    </div>
+  )
+}
+
+export const Avatar = ({ texto }: { texto: string }) => <div className="ff-av">{texto}</div>
+export const Pilula = ({ tom, children }: { tom: 'erro' | 'alerta' | 'ok' | 'info' | 'marca'; children: ReactNode }) => <span className={`ff-pil ff-${tom}`}>{children}</span>
+
+/** Cartão de grupo: cabeçalho em degradê, anel com total, faixas com bolinha, mini-números e selo. */
+export function CartaoGrupo({ cor, sigla, titulo, sub, pilula, total, rotuloTotal, faixas, mini, selo }: {
+  cor: string; sigla: string; titulo: string; sub?: ReactNode; pilula?: ReactNode
+  total: number; rotuloTotal: string; faixas: SegmentoFaixa[]
+  mini: { valor: ReactNode; rotulo: string }[]; selo?: { tom: 'erro' | 'alerta' | 'ok'; texto: string }
+}) {
+  const soma = faixas.reduce((s, f) => s + f.n, 0)
+  let acc = 0
+  const anel = soma === 0 ? 'var(--borda)' : `conic-gradient(${faixas.filter(f => f.n > 0).map(f => {
+    const de = (acc / soma) * 100; acc += f.n; return `${f.cor} ${de}% ${(acc / soma) * 100}%`
+  }).join(',')})`
+  return (
+    <div className="ff-grupo">
+      <div className="ff-cab" style={{ ['--c' as string]: cor }}>
+        <div className="ff-av">{sigla}</div>
+        <div className="ff-cab-t"><b>{titulo}</b>{sub && <small>{sub}</small>}</div>
+        {pilula && <span className="ff-pil">{pilula}</span>}
+      </div>
+      <div className="ff-corpo">
+        <div className="ff-anel" style={{ background: anel }}><div><b>{total}</b><small>{rotuloTotal}</small></div></div>
+        <div className="ff-fx">{faixas.map(f => <div key={f.rotulo}><span><i style={{ background: f.cor }} />{f.rotulo}</span><b>{f.n}</b></div>)}</div>
+      </div>
+      <div className="ff-mini">{mini.map(m => <div key={m.rotulo}><b>{m.valor}</b><span>{m.rotulo}</span></div>)}</div>
+      {selo && <div className="ff-selo-w"><span className={`ff-selo ff-${selo.tom}`}>{selo.texto}</span></div>}
+    </div>
+  )
+}
